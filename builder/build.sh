@@ -152,8 +152,9 @@ BUILDER_NAME="${GITHUB_ACTOR:-Unknown}"
 *Device:* \`${DEVICE}\`
 *Type:* \`${BUILD_TYPE}\`
 *Build Progress:* \`${CURRENT_PROGRESS}\`
-*Job:* [Click Here](${JOB_URL})"
 *Builder:* \`${BUILDER_NAME}\`
+*Job:* [Click Here](${JOB_URL})"
+
             
             tg_edit_message "$MSG_ID" "$NEW_TEXT"
             previous_progress="$CURRENT_PROGRESS"
