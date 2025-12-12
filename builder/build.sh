@@ -138,6 +138,7 @@ else
 fi
 
 # 1. Start Monitoring Loop in Background
+BUILDER_NAME="${GITHUB_ACTOR:-Unknown}"
 (
     previous_progress=""
     while true; do
@@ -152,6 +153,7 @@ fi
 *Type:* \`${BUILD_TYPE}\`
 *Build Progress:* \`${CURRENT_PROGRESS}\`
 *Job:* [Click Here](${JOB_URL})"
+*Builder:* \`${BUILDER_NAME}\`
             
             tg_edit_message "$MSG_ID" "$NEW_TEXT"
             previous_progress="$CURRENT_PROGRESS"
