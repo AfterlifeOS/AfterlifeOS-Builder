@@ -11,14 +11,19 @@ pipeline {
         choice(name: 'FULLCLEAN', choices: ['No', 'Yes'], description: 'Run build with make clean (cleans entire out dir)')
         choice(name: 'FSGEN', choices: ['Enable', 'Disable'], description: 'Disable soong_filesystem_creator for certain builds')
         choice(name: 'GMS_VARIANT', choices: ['Tree default', 'Full', 'Core', 'Basic', 'Vanilla'], description: 'Choose GMS variant to apply')
+        choice(name: 'RELEASE_BUILD', choices: ['No', 'Yes'], description: 'Release your build directly or not')
         string(name: 'LOCAL_MANIFEST_URL', defaultValue: '', description: 'URL to local_manifest.xml (optional)')
     }
 
     environment {
         // Define AOSP source directory centrally
         AOSP_SOURCE_DIR = "$HOME/android/source"
+
+        // Global Variable
         FULL_CLEAN = "${(params.FULLCLEAN == 'Yes') ? 'true' : 'false'}"
-        
+        RELEASE_BUILD = "${(params.RELEASE_BUILD == 'Yes') ? 'true' : 'false'}"
+        TELEGRAM_TOKEN = credentials('telegram-token')
+
         // Replace with your actual AOSP manifest URL and branch
         AOSP_MANIFEST_URL = 'https://github.com/AfterlifeOS/afterlife_manifest.git'
         AOSP_MANIFEST_BRANCH = '16'
