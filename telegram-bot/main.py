@@ -462,8 +462,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # FIXED INSTRUCTION MESSAGE
         instruction_text = (
-            r"Reply with your notes\." + "\n"
-            r"• Do NOT add dash \(\-\)" + " manually\." + "\n"
+            r"Reply with your notes\." "\n"
+            r"• Do NOT add dash \(\-\)" " manually\." "\n"
             r"• To add a link, use format: `[text] (url)`"
         )
         msg = await query.message.reply_text(instruction_text, reply_markup=ForceReply(selective=True), parse_mode=ParseMode.MARKDOWN_V2)
