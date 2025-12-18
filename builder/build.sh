@@ -14,6 +14,10 @@ AOSP_SOURCE_DIR="$HOME/android/source"
 echo "Navigating to AOSP source directory: $AOSP_SOURCE_DIR"
 cd "$AOSP_SOURCE_DIR" || { echo "Failed to navigate to $AOSP_SOURCE_DIR"; exit 1; }
 
+# Saving current device
+echo "Saving current device name for next build's cleanup..."
+echo "$DEVICE" > .last_build_device.tmp
+
 # Source build environment
 echo "Sourcing build/envsetup.sh..."
 . build/envsetup.sh || { echo "Failed to source build/envsetup.sh"; exit 1; }

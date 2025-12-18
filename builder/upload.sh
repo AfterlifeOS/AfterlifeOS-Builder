@@ -2,10 +2,8 @@
 
 # Arguments:
 # 1: DEVICE
-# 2: RELEASETYPE (though not strictly needed for locating the file, good to pass)
 
 DEVICE="$1"
-RELEASETYPE="$2"
 
 echo "Starting Uploading Build stage..."
 
@@ -17,7 +15,7 @@ cd "$AOSP_SOURCE_DIR" || { echo "Failed to navigate to $AOSP_SOURCE_DIR"; exit 1
 # Locate the built ROM file
 # Assuming the ROM file is a .zip in the standard AOSP output directory
 BUILD_OUTPUT_DIR="out/target/product/$DEVICE"
-ROM_FILE=$(find "$BUILD_OUTPUT_DIR" -maxdepth 1 -name "Afterlife_*.zip" | head -n 1)
+ROM_FILE=$(find "$BUILD_OUTPUT_DIR" -maxdepth 1 -name "AfterlifeOS_*.zip" | head -n 1)
 
 if [ -z "$ROM_FILE" ]; then
     echo "Error: ROM file not found in $BUILD_OUTPUT_DIR"
@@ -45,8 +43,5 @@ echo "=========================================="
 echo "Build successfully uploaded!"
 echo "Download Link: $DOWNLOAD_URL"
 echo "=========================================="
-
-echo "Saving current device name for next build's cleanup..."
-echo "$DEVICE" > .last_build_device.tmp
 
 echo "Uploading Build stage complete."
