@@ -1,0 +1,158 @@
+import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
+from datetime import datetime, timezone, timedelta
+from utils import (
+    get_quota_status, get_user_data, convert_to_raw_url,
+    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN
+)
+
+# === CONSTANTS ===
+BUILD_OPTIONS = {
+    'RELEASETYPE': ['user', 'userdebug', 'eng'],
+    'GMS_VARIANT': ['Tree default', 'Full', 'Core', 'Basic', 'Vanilla'],
+    'INSTALLCLEAN': ['Yes', 'No'],
+    'FULLCLEAN': ['No', 'Yes'],
+    'FSGEN': ['Enable', 'Disable'],
+    'RELEASE_BUILD': ['No', 'Yes']
+}
+
+# === KEYBOARDS ===
+def get_build_menu_keyboard(params):
+    def btn(l, k): return InlineKeyboardButton(f"{l}: {params[k]}", callback_data=f"build_set:{k}")
+    return InlineKeyboardMarkup([
+        [btn("Type", "RELEASETYPE"), btn("GMS", "GMS_VARIANT")],
+        [btn("Clean", "INSTALLCLEAN"), btn("Full Clean", "FULLCLEAN")],
+        [btn("FSGen", "FSGEN"), btn("Release", "RELEASE_BUILD")],
+        [InlineKeyboardButton("✅ START", callback_data="build_action:start"), InlineKeyboardButton("❌ CANCEL", callback_data="build_action:cancel")]
+    ])
+
+# === HELPERS ===
+def get_jenkins(context):
+    # Retrieve from bot_data (injected in main) or try reconnect (self-healing logic here if needed)
+    return context.bot_data.get("jenkins")
+
+# === HANDLERS ===
+async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    role, used, remaining = get_quota_status(uid)
+    if not role:
+        await update.message.reply_text("⛔ Not registered.")
+        return
+
+    now = datetime.now(timezone.utc)
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    h, r = divmod((tomorrow - now).seconds, 3600)
+    m, _ = divmod(r, 60)
+    
+    lim = "Unlimited" if role == ROLE_ADMIN else f"{MAX_QUOTA_USER}"
+    msg = (f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset: {h}h {m}m")
+    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if not get_user_data(uid):
+        await update.message.reply_text("⛔ Not registered.")
+        return
+
+    server = get_jenkins(context)
+    if not server:
+        await update.message.reply_text("⚠️ Jenkins disconnected.")
+        return
+
+    try:
+        jinfo = await asyncio.to_thread(server.get_job_info, JENKINS_JOB_NAME)
+        lnum = jinfo['lastBuild']['number']
+        linfo = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, lnum)
+        
+        msg = "<b>🔨 Jenkins Status</b>\n\n"
+        if linfo['building']:
+            dur = (datetime.now().timestamp()*1000) - linfo['timestamp']
+            dmin = int((dur/1000)/60)
+            p = {x['name']: x['value'] for x in linfo['actions'][0].get('parameters', [])}
+            msg += f"🟢 <b>Building:</b> #{lnum}\n📱 {p.get('DEVICE')}\n👤 {p.get('BUILD_USER','?')}\n⏱ {dmin} mins\n🔗 <a href='{linfo['url']}'>Pipeline</a>"
+        else:
+            msg += f"💤 <b>Idle</b>. Last: #{lnum}\nResult: {linfo['result']}\n🔗 <a href='{linfo['url']}'>Result</a>"
+        
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    role, _, rem = get_quota_status(uid)
+    
+    if role is None:
+        await update.message.reply_text("⛔ Unauthorized.")
+        return
+    if role != ROLE_ADMIN and rem <= 0:
+        await update.message.reply_text("⛔ Quota Exceeded.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /build <device> [url]")
+        return
+
+    dev = context.args[0]
+    url = convert_to_raw_url(context.args[1]) if len(context.args) > 1 else ""
+    
+    params = {
+        'DEVICE': dev, 'RELEASETYPE': 'user', 'GMS_VARIANT': 'Tree default',
+        'INSTALLCLEAN': 'Yes', 'FULLCLEAN': 'No', 'FSGEN': 'Enable', 'RELEASE_BUILD': 'No',
+        'LOCAL_MANIFEST_URL': url, 
+        'BUILD_USER': update.effective_user.username or update.effective_user.first_name,
+        'BUILD_USER_ID': str(uid)
+    }
+    context.user_data['pending_build'] = params
+    
+    lim_str = "Unlimited" if role == ROLE_ADMIN else f"{rem} left"
+    msg = f"<b>🛠 Build Config</b>\n👤 {params['BUILD_USER']} ({lim_str})\n📱 {dev}\n\n<i>Adjust & Start.</i>"
+    await update.message.reply_text(msg, reply_markup=get_build_menu_keyboard(params), parse_mode=ParseMode.HTML)
+
+async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data_str = query.data
+    
+    # BUILD ACTION
+    if data_str.startswith("build_action:"):
+        act = data_str.split(":")[1]
+        if act == "cancel":
+            await query.edit_message_text("❌ Cancelled.")
+            if 'pending_build' in context.user_data: del context.user_data['pending_build']
+        elif act == "start":
+            # Re-check quota
+            role, _, rem = get_quota_status(query.from_user.id)
+            if role != ROLE_ADMIN and rem <= 0:
+                await query.answer("Quota exceeded!", show_alert=True)
+                return
+            
+            p = context.user_data.get('pending_build')
+            if not p:
+                await query.edit_message_text("⚠️ Expired.")
+                return
+            
+            srv = get_jenkins(context)
+            if not srv:
+                await query.answer("Jenkins Down", show_alert=True)
+                return
+
+            try:
+                await asyncio.to_thread(srv.build_job, JENKINS_JOB_NAME, parameters=p)
+                await query.edit_message_text(f"✅ <b>Queued!</b>\nDevice: {p['DEVICE']}\nQuota updates on success.", parse_mode=ParseMode.HTML)
+            except Exception as e:
+                await query.edit_message_text(f"❌ Failed: {e}")
+
+    # BUILD SET
+    elif data_str.startswith("build_set:"):
+        k = data_str.split(":")[1]
+        p = context.user_data.get('pending_build')
+        if not p: return
+        opts = BUILD_OPTIONS.get(k)
+        if opts:
+            try: p[k] = opts[(opts.index(p[k])+1)%len(opts)]
+            except: p[k] = opts[0]
+            context.user_data['pending_build'] = p
+            try: await query.edit_message_reply_markup(get_build_menu_keyboard(p))
+            except: pass
+        await query.answer()
