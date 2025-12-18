@@ -3,16 +3,15 @@
 # Arguments:
 # 1: DEVICE
 # 2: RELEASETYPE
+# 3: INSTALLCLEAN
+# 4: FULLCLEAN
 
 DEVICE="$1"
 RELEASETYPE="$2"
+INSTALLCLEAN="$3"
+FULLCLEAN="$4"
 
 echo "Starting Building stage..."
-
-# Navigate to AOSP source directory
-AOSP_SOURCE_DIR="$HOME/android/source"
-echo "Navigating to AOSP source directory: $AOSP_SOURCE_DIR"
-cd "$AOSP_SOURCE_DIR" || { echo "Failed to navigate to $AOSP_SOURCE_DIR"; exit 1; }
 
 # Saving current device
 echo "Saving current device name for next build's cleanup..."
@@ -22,10 +21,22 @@ echo "$DEVICE" > .last_build_device.tmp
 echo "Sourcing build/envsetup.sh..."
 . build/envsetup.sh || { echo "Failed to source build/envsetup.sh"; exit 1; }
 
+# Handle Full Clean step (cleans the entire 'out' directory)
+if [ "$FULLCLEAN" == "Yes" ]; then
+    echo "FULLCLEAN is Yes, running 'make clean'..."
+    make clean || { echo "Make clean failed"; exit 1; }
+fi
+
 # Run lunch command
 LUNCH_COMMAND="lunch afterlife_${DEVICE}-bp2a-${RELEASETYPE}"
 echo "Running lunch command: $LUNCH_COMMAND"
 $LUNCH_COMMAND || { echo "Lunch command failed"; exit 1; }
+
+# Handle Install Clean step (cleans only the product's out directory)
+if [ "$INSTALLCLEAN" == "Yes" ]; then
+    echo "INSTALLCLEAN is Yes, running 'make installclean'..."
+    make installclean || { echo "Install Clean failed"; exit 1; }
+fi
 
 # Start building
 echo "Starting make process with all available cores..."

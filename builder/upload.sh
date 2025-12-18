@@ -7,22 +7,19 @@ DEVICE="$1"
 
 echo "Starting Uploading Build stage..."
 
-# Navigate to AOSP source directory
-AOSP_SOURCE_DIR="$HOME/android/source"
-echo "Navigating to AOSP source directory: $AOSP_SOURCE_DIR"
-cd "$AOSP_SOURCE_DIR" || { echo "Failed to navigate to $AOSP_SOURCE_DIR"; exit 1; }
-
 # Locate the built ROM file
-# Assuming the ROM file is a .zip in the standard AOSP output directory
 BUILD_OUTPUT_DIR="out/target/product/$DEVICE"
-ROM_FILE=$(find "$BUILD_OUTPUT_DIR" -maxdepth 1 -name "AfterlifeOS_*.zip" | head -n 1)
+echo "Searching for the latest ROM in: $BUILD_OUTPUT_DIR"
+
+# Find the newest file matching the pattern. This is more reliable than `head -n 1`.
+ROM_FILE=$(find "$BUILD_OUTPUT_DIR" -maxdepth 1 -name "AfterlifeOS_*.zip" -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
 
 if [ -z "$ROM_FILE" ]; then
     echo "Error: ROM file not found in $BUILD_OUTPUT_DIR"
     exit 1
 fi
 
-echo "Found ROM file: $ROM_FILE"
+echo "Found latest ROM file: $ROM_FILE"
 
 # Check for jq dependency
 if ! command -v jq &> /dev/null; then
