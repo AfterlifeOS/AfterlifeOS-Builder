@@ -13,6 +13,10 @@ pipeline {
         choice(name: 'GMS_VARIANT', choices: ['Tree default', 'Full', 'Core', 'Basic', 'Vanilla'], description: 'Choose GMS variant to apply')
         choice(name: 'RELEASE_BUILD', choices: ['No', 'Yes'], description: 'Release your build directly or not')
         string(name: 'LOCAL_MANIFEST_URL', defaultValue: '', description: 'URL to local_manifest.xml (optional)')
+        
+        // Hidden parameters for Bot Integration
+        string(name: 'BUILD_USER', defaultValue: 'Jenkins', description: 'Username of the trigger (Bot)')
+        string(name: 'BUILD_USER_ID', defaultValue: '0', description: 'Telegram ID of the trigger (Bot)')
     }
 
     environment {
@@ -127,6 +131,19 @@ pipeline {
                         echo "Build finished. Restoring Android.bp..."
                         cd $AOSP_SOURCE_DIR
                         ${env.WORKSPACE}/builder/fsgen_control.sh restore
+                    """
+                }
+            }
+        }
+        success {
+            script {
+                // Update Quota only if build succeeds (or you can move to 'always' if you want to count failures too)
+                // Only run if triggered by a valid Telegram User ID
+                if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
+                    sh """
+                        echo "Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
+                        chmod +x ${env.WORKSPACE}/builder/quota_manager.py
+                        python3 ${env.WORKSPACE}/builder/quota_manager.py "${params.BUILD_USER_ID}" "${params.BUILD_USER}"
                     """
                 }
             }
