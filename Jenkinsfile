@@ -84,6 +84,8 @@ pipeline {
                         --release-status "${params.RELEASE_BUILD}" \
                         --gms "${params.GMS_VARIANT}" \
                         --fsgen "${params.FSGEN}" \
+                        --install-clean "${params.INSTALLCLEAN}" \
+                        --full-clean "${params.FULLCLEAN}" \
                         --user "${params.BUILD_USER}" \
                         --chat-id "${TELEGRAM_CHAT_ID}" \
                         --topic-builder "${TOPIC_BUILDER}" \
@@ -195,6 +197,8 @@ pipeline {
                     --release-status "${params.RELEASE_BUILD}" \
                     --gms "${params.GMS_VARIANT}" \
                     --fsgen "${params.FSGEN}" \
+                    --install-clean "${params.INSTALLCLEAN}" \
+                    --full-clean "${params.FULLCLEAN}" \
                     --user "${params.BUILD_USER}" \
                     --chat-id "${TELEGRAM_CHAT_ID}" \
                     --topic-builder "${TOPIC_BUILDER}" \
@@ -217,6 +221,8 @@ pipeline {
                     --release-status "${params.RELEASE_BUILD}" \
                     --gms "${params.GMS_VARIANT}" \
                     --fsgen "${params.FSGEN}" \
+                    --install-clean "${params.INSTALLCLEAN}" \
+                    --full-clean "${params.FULLCLEAN}" \
                     --user "${params.BUILD_USER}" \
                     --chat-id "${TELEGRAM_CHAT_ID}" \
                     --topic-builder "${TOPIC_BUILDER}" \
@@ -239,6 +245,8 @@ pipeline {
                     --release-status "${params.RELEASE_BUILD}" \
                     --gms "${params.GMS_VARIANT}" \
                     --fsgen "${params.FSGEN}" \
+                    --install-clean "${params.INSTALLCLEAN}" \
+                    --full-clean "${params.FULLCLEAN}" \
                     --user "${params.BUILD_USER}" \
                     --chat-id "${TELEGRAM_CHAT_ID}" \
                     --topic-builder "${TOPIC_BUILDER}" \

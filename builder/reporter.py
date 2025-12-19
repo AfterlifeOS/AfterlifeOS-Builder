@@ -68,6 +68,8 @@ def main():
     parser.add_argument('--build-url', required=True, help="Jenkins Build URL")
     parser.add_argument('--release-status', required=True, help="Release Build (Yes/No)")
     parser.add_argument('--source-dir', required=True, help="AOSP Source Directory")
+    parser.add_argument('--install-clean', default="No", help="Install Clean (Yes/No)")
+    parser.add_argument('--full-clean', default="No", help="Full Clean (Yes/No)")
     
     args = parser.parse_args()
     bot = TelegramBot(args.token)
@@ -81,6 +83,7 @@ def main():
         f"📢 **Release:** `{args.release_status}`\n"
         f"🧩 **GMS:** `{args.gms}`\n"
         f"🛠 **FSGen:** `{args.fsgen}`\n"
+        f"🧹 **Clean:** `{args.install_clean}` | **Full:** `{args.full_clean}`\n"
         f"👤 **User:** `{args.user}`"
     )
 
