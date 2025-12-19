@@ -6,7 +6,8 @@ import subprocess
 from datetime import datetime, timezone
 
 # Configuration
-DB_PATH = "database.json"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(SCRIPT_DIR, "..", "database.json")
 MAX_QUOTA = 5
 ROLE_ADMIN = "admin"
 
@@ -68,11 +69,18 @@ def main():
     
     if last_date != today_str:
         print(f"New day detected (Last: {last_date}, Today: {today_str}). Resetting counter.")
-        user_data["daily_count"] = 1
+        user_data["daily_count"] = 0
         user_data["last_build_date"] = today_str
-    else:
-        user_data["daily_count"] += 1
-        print(f"Incrementing counter to {user_data['daily_count']}")
+    
+    # CHECK QUOTA LIMIT
+    current_count = user_data.get("daily_count", 0)
+    if role != ROLE_ADMIN and current_count >= MAX_QUOTA:
+        print(f"[ERROR] Quota Exceeded! Used: {current_count}/{MAX_QUOTA}")
+        sys.exit(1) # Fail the build immediately
+
+    # INCREMENT & SAVE
+    user_data["daily_count"] += 1
+    print(f"Quota Approved. Incrementing counter to {user_data['daily_count']}")
 
     # Update Username just in case
     user_data["username"] = username

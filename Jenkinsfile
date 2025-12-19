@@ -60,6 +60,22 @@ pipeline {
     }
 
     stages {
+        stage('Check Quota') {
+            steps {
+                script {
+                    // Only check if triggered by a valid Telegram User ID
+                    if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
+                        echo "Checking & Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
+                        sh """
+                            chmod +x ${env.WORKSPACE}/builder/quota_manager.py
+                            python3 ${env.WORKSPACE}/builder/quota_manager.py "${params.BUILD_USER_ID}" "${params.BUILD_USER}"
+                        """
+                    } else {
+                        echo "Build triggered manually/internally. Skipping quota check."
+                    }
+                }
+            }
+        }
         stage('Syncing Source') {
             steps {
                 script {
@@ -131,19 +147,6 @@ pipeline {
                         echo "Build finished. Restoring Android.bp..."
                         cd $AOSP_SOURCE_DIR
                         ${env.WORKSPACE}/builder/fsgen_control.sh restore
-                    """
-                }
-            }
-        }
-        success {
-            script {
-                // Update Quota only if build succeeds (or you can move to 'always' if you want to count failures too)
-                // Only run if triggered by a valid Telegram User ID
-                if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
-                    sh """
-                        echo "Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
-                        chmod +x ${env.WORKSPACE}/builder/quota_manager.py
-                        python3 ${env.WORKSPACE}/builder/quota_manager.py "${params.BUILD_USER_ID}" "${params.BUILD_USER}"
                     """
                 }
             }
