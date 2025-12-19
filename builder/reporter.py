@@ -125,14 +125,24 @@ def main():
             print(f"Found error.log at: {error_log_device}")
             log_file_to_upload = error_log_device
         else:
-            # Create snippet
-            print("error.log not found, tailing build.log...")
-            build_log = os.path.join(workspace, 'build.log')
-            if os.path.exists(build_log):
-                temp_log = "build_failure_tail.txt"
-                with open(temp_log, 'w') as f:
-                    f.write(get_file_tail(build_log, 200))
-                log_file_to_upload = temp_log
+            # Check for sync.log (Sync Failure)
+            sync_log = os.path.join(workspace, 'sync.log')
+            if os.path.exists(sync_log):
+                 print("error.log not found, found sync.log. Tailing it...")
+                 temp_log = "sync_failure_tail.txt"
+                 with open(temp_log, 'w') as f:
+                     f.write(get_file_tail(sync_log, 200))
+                 log_file_to_upload = temp_log
+                 log_caption = f"❌ Sync Log - {args.device}"
+            else:
+                # Create snippet from build.log (Build Failure)
+                print("error.log and sync.log not found, tailing build.log...")
+                build_log = os.path.join(workspace, 'build.log')
+                if os.path.exists(build_log):
+                    temp_log = "build_failure_tail.txt"
+                    with open(temp_log, 'w') as f:
+                        f.write(get_file_tail(build_log, 200))
+                    log_file_to_upload = temp_log
         
         if log_file_to_upload:
             resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs)
@@ -141,7 +151,7 @@ def main():
                 log_link = f"[View Log File]({create_telegram_link(args.chat_id, args.topic_error_logs, msg_id)})"
             
             # Clean up temp
-            if log_file_to_upload == "build_failure_tail.txt":
+            if log_file_to_upload in ["build_failure_tail.txt", "sync_failure_tail.txt"]:
                 os.remove(log_file_to_upload)
 
         # 2. Send Notification to Builder Topic

@@ -13,28 +13,6 @@ FULLCLEAN="$4"
 
 echo "Starting Building stage..."
 
-# Checking latest build device
-echo "Checking Build Context..."
-if [ -f .last_build_device.tmp ]; then
-    LAST_DEVICE=$(cat .last_build_device.tmp)
-    echo "-> Current device is ${DEVICE}"
-    echo "-> Previous device is ${LAST_DEVICE}"
-    if [ "$DEVICE" != "$LAST_DEVICE" ]; then
-        echo "[*] Current build device is not same with latest build device"
-        echo "[*] Cleaning up latest device trash files"
-        TRASH_DIR="out/target/product/${LAST_DEVICE}"
-        if [ -d "${TRASH_DIR}" ]; then
-            echo "[*] found ${TRASH_DIR}. Removing now..."
-            rm -rf "${TRASH_DIR}"
-        else
-            echo "[*] ${TRASH_DIR} not found. skipping cleanup..."
-        fi
-    else
-        echo "[*] Current build device same with latest build device"
-        echo "[*] No need to clean up"
-    fi
-fi
-
 # Saving current device
 echo "Saving current device name for next build's cleanup..."
 echo "$DEVICE" > .last_build_device.tmp

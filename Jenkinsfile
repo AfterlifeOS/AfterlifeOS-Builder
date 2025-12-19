@@ -72,6 +72,9 @@ pipeline {
                     sh "chmod +x ${env.WORKSPACE}/builder/*.py"
                     sh "chmod +x ${env.WORKSPACE}/builder/*.sh"
                     
+                    // Clean up old logs to prevent false reporting
+                    sh "rm -f ${env.WORKSPACE}/build.log ${env.WORKSPACE}/sync.log"
+                    
                     echo "Sending Start Notification..."
                     sh """
                         python3 ${env.WORKSPACE}/builder/reporter.py \
@@ -113,7 +116,9 @@ pipeline {
                         git config --global user.name "HinohArata"
                         git config --global user.email "161218134+HinohArata@users.noreply.github.com"
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/sync.sh "${params.LOCAL_MANIFEST_URL}"
+                        # Pipe output to sync.log for reporter, and use pipefail to catch errors
+                        set -o pipefail
+                        ${env.WORKSPACE}/builder/sync.sh "${params.LOCAL_MANIFEST_URL}" 2>&1 | tee "${env.WORKSPACE}/sync.log"
                     """
                 }
             }

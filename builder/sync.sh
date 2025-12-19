@@ -23,9 +23,41 @@ repo init -u "$AOSP_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs
 
 # --- Handle LOCAL_MANIFEST_URL ---
 if [ -n "$LOCAL_MANIFEST_URL" ]; then
-    echo "Fetching local manifest from: $LOCAL_MANIFEST_URL"
     MANIFEST_FILENAME="jenkins_custom_manifest.xml"
     LOCAL_MANIFEST_PATH=".repo/local_manifests/$MANIFEST_FILENAME"
+
+    # --- CLEANUP BASED ON OLD MANIFEST ---
+    if [ -f "$LOCAL_MANIFEST_PATH" ]; then
+        echo "Found existing local manifest. Cleaning up old trees..."
+        # Extract paths using python to avoid regex fragility
+        OLD_PATHS=$(python3 -c "
+import xml.etree.ElementTree as ET
+import os
+try:
+    tree = ET.parse('$LOCAL_MANIFEST_PATH')
+    root = tree.getroot()
+    for project in root.findall('project'):
+        path = project.get('path')
+        if path:
+            print(path)
+except Exception as e:
+    print('')
+")
+        
+        if [ -n "$OLD_PATHS" ]; then
+            echo "Removing the following paths from old manifest:"
+            echo "$OLD_PATHS"
+            for path in $OLD_PATHS; do
+                if [ -d "$path" ]; then
+                    echo "Removing $path..."
+                    rm -rf "$path"
+                fi
+            done
+        fi
+    fi
+    # -------------------------------------
+
+    echo "Fetching local manifest from: $LOCAL_MANIFEST_URL"
 
     # Fetch the local manifest content
     if curl -o "$LOCAL_MANIFEST_PATH" "$LOCAL_MANIFEST_URL"; then
