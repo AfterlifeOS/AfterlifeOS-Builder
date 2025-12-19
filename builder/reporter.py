@@ -9,22 +9,27 @@ from utils.telegram import TelegramBot
 
 def upload_to_gofile(file_path):
     print(f"Uploading {file_path} to GoFile...")
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    url = "https://upload.gofile.io/uploadFile"
+    
     try:
-        server_req = requests.get("https://api.gofile.io/getServer")
-        server_data = server_req.json()
-        if server_data['status'] != 'ok':
-            return None
-        
-        server = server_data['data']['server']
         with open(file_path, 'rb') as f:
             upload_req = requests.post(
-                f"https://{server}.gofile.io/uploadFile",
-                files={'file': f}
+                url,
+                files={'file': f},
+                headers=headers
             )
-            upload_data = upload_req.json()
+            
+            try:
+                upload_data = upload_req.json()
+            except ValueError:
+                 print(f"GoFile JSON Error: {upload_req.text}")
+                 return None
+
             if upload_data['status'] == 'ok':
                 return upload_data['data']['downloadPage']
             else:
+                print(f"GoFile upload failed: {upload_data}")
                 return None
     except Exception as e:
         print(f"GoFile Exception: {e}")
