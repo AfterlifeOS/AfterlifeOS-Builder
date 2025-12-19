@@ -151,11 +151,24 @@ def main():
 
     # --- SUCCESS ---
     print("Handling Build Success...")
+    
+    if not os.path.exists(out_dir):
+        print(f"Error: Output directory not found: {out_dir}")
+        bot.send_message(args.chat_id, f"⚠️ Build Success but Output Dir not found: `{out_dir}`", topic_id=args.topic_builder)
+        return
+
+    print(f"Searching for ZIPs in: {out_dir}")
+    try:
+        print(f"Files in dir: {os.listdir(out_dir)}")
+    except Exception as e:
+        print(f"Error listing dir: {e}")
+
     # Find ROM
-    zip_pattern = os.path.join(out_dir, f"AfterlifeOS_*-{args.device}-*.zip")
+    zip_pattern = os.path.join(out_dir, "AfterlifeOS*.zip")
     files = glob.glob(zip_pattern)
+    
     if not files:
-        bot.send_message(args.chat_id, f"⚠️ Build Success but ZIP not found!", topic_id=args.topic_builder)
+        bot.send_message(args.chat_id, f"⚠️ Build Success but ZIP not found in `{out_dir}`", topic_id=args.topic_builder)
         return
     
     rom_file = max(files, key=os.path.getctime)
