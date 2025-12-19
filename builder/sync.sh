@@ -8,6 +8,11 @@ LOCAL_MANIFEST_URL="$1"
 
 echo "Starting Syncing Source stage..."
 
+# --- Clean up old error logs ---
+echo "Cleaning up old error logs..."
+rm -f out/error.log
+rm -f out/target/product/*/error.log
+
 # --- Initialize directories and tracking files ---
 echo "Ensuring local manifests directory exists..."
 mkdir -p ".repo/local_manifests" || { echo "Failed to create .repo/local_manifests"; exit 1; }

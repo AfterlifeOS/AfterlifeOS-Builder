@@ -62,11 +62,12 @@ def main():
     parser.add_argument('--token', required=True)
     parser.add_argument('--build-url', required=True, help="Jenkins Build URL")
     parser.add_argument('--release-status', required=True, help="Release Build (Yes/No)")
+    parser.add_argument('--source-dir', required=True, help="AOSP Source Directory")
     
     args = parser.parse_args()
     bot = TelegramBot(args.token)
     workspace = os.environ.get('WORKSPACE', '.')
-    out_dir = os.path.join(workspace, 'android', 'source', 'out', 'target', 'product', args.device)
+    out_dir = os.path.join(args.source_dir, 'out', 'target', 'product', args.device)
     
     # Common Info Block
     info_block = (
@@ -104,14 +105,23 @@ def main():
         log_link = "Not Available"
         
         # 1. Upload Log to Error Logs Topic
-        error_log = os.path.join(out_dir, 'error.log')
+        # Prioritize out/error.log (Root of out)
+        error_log_root = os.path.join(args.source_dir, 'out', 'error.log')
+        # Also check device specific (just in case)
+        error_log_device = os.path.join(out_dir, 'error.log')
+        
         log_file_to_upload = None
         log_caption = f"❌ Error Log - {args.device}"
         
-        if os.path.exists(error_log):
-            log_file_to_upload = error_log
+        if os.path.exists(error_log_root):
+            print(f"Found error.log at: {error_log_root}")
+            log_file_to_upload = error_log_root
+        elif os.path.exists(error_log_device):
+            print(f"Found error.log at: {error_log_device}")
+            log_file_to_upload = error_log_device
         else:
             # Create snippet
+            print("error.log not found, tailing build.log...")
             build_log = os.path.join(workspace, 'build.log')
             if os.path.exists(build_log):
                 temp_log = "build_failure_tail.txt"

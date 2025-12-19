@@ -87,7 +87,8 @@ pipeline {
                         --topic-error-logs "${TOPIC_ERROR_LOGS}" \
                         --topic-release-json "${TOPIC_RELEASE_JSON}" \
                         --token "${TELEGRAM_TOKEN}" \
-                        --build-url "${env.BUILD_URL}"
+                        --build-url "${env.BUILD_URL}" \
+                        --source-dir "${AOSP_SOURCE_DIR}"
                     """
                 }
             }
@@ -124,7 +125,7 @@ pipeline {
                     sh """
                         echo "GMS Variant is set to '${params.GMS_VARIANT}'. Applying changes..."
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/gms_variant_control.sh "${params.DEVICE}" "${params.GMS_VARIANT}"
+                        ${env.WORKSPACE}/builder/gms_variant_control.sh apply "${params.DEVICE}" "${params.GMS_VARIANT}"
                     """
                 }
             }
@@ -161,11 +162,21 @@ pipeline {
     post {
         always {
             script {
+                // Restore FSGen if needed
                 if (params.FSGEN == 'Disable') {
                     sh """
-                        echo "Build finished. Restoring Android.bp..."
+                        echo "Restoring Android.bp..."
                         cd $AOSP_SOURCE_DIR
                         ${env.WORKSPACE}/builder/fsgen_control.sh restore
+                    """
+                }
+                
+                // Restore GMS Variant if needed (Check if GMS was modified)
+                if (params.GMS_VARIANT != 'Tree default') {
+                     sh """
+                        echo "Restoring GMS Variant (Makefile)..."
+                        cd $AOSP_SOURCE_DIR
+                        ${env.WORKSPACE}/builder/gms_variant_control.sh restore "${params.DEVICE}" "ignored"
                     """
                 }
             }
@@ -187,7 +198,8 @@ pipeline {
                     --topic-error-logs "${TOPIC_ERROR_LOGS}" \
                     --topic-release-json "${TOPIC_RELEASE_JSON}" \
                     --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}"
+                    --build-url "${env.BUILD_URL}" \
+                    --source-dir "${AOSP_SOURCE_DIR}"
                 """
             }
         }
@@ -208,7 +220,8 @@ pipeline {
                     --topic-error-logs "${TOPIC_ERROR_LOGS}" \
                     --topic-release-json "${TOPIC_RELEASE_JSON}" \
                     --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}"
+                    --build-url "${env.BUILD_URL}" \
+                    --source-dir "${AOSP_SOURCE_DIR}"
                 """
             }
         }
@@ -229,7 +242,8 @@ pipeline {
                     --topic-error-logs "${TOPIC_ERROR_LOGS}" \
                     --topic-release-json "${TOPIC_RELEASE_JSON}" \
                     --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}"
+                    --build-url "${env.BUILD_URL}" \
+                    --source-dir "${AOSP_SOURCE_DIR}"
                 """
             }
         }
