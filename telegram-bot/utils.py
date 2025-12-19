@@ -58,7 +58,6 @@ if TEST_GROUP_ID != 0 and TEST_GROUP_ID not in ALLOWED_CHAT_IDS:
 ADMIN_USER_IDS = parse_list(os.environ.get("ADMIN_USER_IDS", ""))
 
 # === CONSTANTS ===
-DB_FILE = os.path.join(base_dir, "..", "database.json")
 MAX_QUOTA_USER = 5
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
@@ -72,13 +71,10 @@ def get_github_headers():
     }
 
 def load_db():
-    """Load DB from GitHub, fallback to local"""
+    """Load DB from GitHub only"""
     if not GITHUB_TOKEN or not DB_REPO:
-        # Fallback to local
-        if not os.path.exists(DB_FILE): return {"users": {}}
-        try:
-            with open(DB_FILE, 'r') as f: return json.load(f)
-        except: return {"users": {}}
+        print("[DB ERROR] Missing GITHUB_TOKEN or DB_REPO")
+        return {"users": {}}
 
     url = f"https://api.github.com/repos/{DB_REPO}/contents/{DB_FILE_PATH}?ref={GITHUB_BRANCH}"
     try:
@@ -87,15 +83,11 @@ def load_db():
             content = base64.b64decode(resp.json()['content']).decode('utf-8')
             return json.loads(content)
         else:
-            print(f"[DB WARN] GitHub Load Failed ({resp.status_code}). Using local.")
+            print(f"[DB ERROR] GitHub Load Failed ({resp.status_code}): {resp.text}")
+            return {"users": {}}
     except Exception as e:
         print(f"[DB ERROR] GitHub Load Exception: {e}")
-    
-    # Fallback
-    if not os.path.exists(DB_FILE): return {"users": {}}
-    try:
-        with open(DB_FILE, 'r') as f: return json.load(f)
-    except: return {"users": {}}
+        return {"users": {}}
 
 def commit_db_to_github(new_data, commit_message):
     """Commit new DB state to GitHub"""
@@ -128,10 +120,7 @@ def commit_db_to_github(new_data, commit_message):
         # 3. PUT Request
         put_resp = requests.put(url, headers=headers, json=payload, timeout=15)
         if put_resp.status_code in [200, 201]:
-            # Also update local file for consistency
-            try:
-                with open(DB_FILE, 'w') as f: json.dump(new_data, f, indent=2)
-            except: pass
+            # Also update local file for consistency -> REMOVED PER USER REQUEST
             return True
         else:
             print(f"[DB ERROR] Commit Failed: {put_resp.text}")
