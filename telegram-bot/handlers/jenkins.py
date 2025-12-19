@@ -5,7 +5,7 @@ from telegram.constants import ParseMode
 from datetime import datetime, timezone, timedelta
 from utils import (
     get_quota_status, get_user_data, convert_to_raw_url,
-    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN
+    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN, ADMIN_USER_IDS
 )
 
 # === CONSTANTS ===
@@ -34,6 +34,59 @@ def get_jenkins(context):
     return context.bot_data.get("jenkins")
 
 # === HANDLERS ===
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancels a specific Jenkins build ID"""
+    uid = update.effective_user.id
+    # Access check is moved to logic below (Owner or Admin)
+
+    server = get_jenkins(context)
+    if not server:
+        await update.message.reply_text("⚠️ Jenkins is disconnected.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ **Usage:** `/cancel <BuildID>`", parse_mode="Markdown")
+        return
+
+    try:
+        build_id = int(context.args[0])
+        status_msg = await update.message.reply_text(f"⏳ Checking Build #{build_id}...")
+        
+        # 1. Get Build Info to check ownership
+        try:
+            build_info = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, build_id)
+        except Exception:
+            await status_msg.edit_text(f"❌ Build #{build_id} not found or unreachable.")
+            return
+
+        # 2. Extract BUILD_USER_ID parameter
+        build_owner_id = None
+        actions = build_info.get('actions', [])
+        for action in actions:
+            if 'parameters' in action:
+                for param in action['parameters']:
+                    if param['name'] == 'BUILD_USER_ID':
+                        build_owner_id = str(param['value'])
+                        break
+        
+        # 3. Check Permissions (Admin OR Owner)
+        is_owner = build_owner_id and str(uid) == build_owner_id
+        is_admin = uid in ADMIN_USER_IDS
+        
+        if not (is_owner or is_admin):
+            await status_msg.edit_text("⛔ **Access Denied:** You can only cancel your own builds.")
+            return
+
+        # 4. Execute Cancel
+        await status_msg.edit_text(f"⏳ Stopping Build #{build_id}...")
+        await asyncio.to_thread(server.stop_build, JENKINS_JOB_NAME, build_id)
+        await status_msg.edit_text(f"🛑 **Build #{build_id} Cancelled.**", parse_mode="Markdown")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Invalid Build ID. Please provide a number.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ **Failed to cancel:** {e}", parse_mode="Markdown")
+
 async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     role, used, remaining = get_quota_status(uid)

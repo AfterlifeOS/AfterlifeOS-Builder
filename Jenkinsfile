@@ -26,7 +26,13 @@ pipeline {
         // Global Variable
         FULL_CLEAN = "${(params.FULLCLEAN == 'Yes') ? 'true' : 'false'}"
         RELEASE_BUILD = "${(params.RELEASE_BUILD == 'Yes') ? 'true' : 'false'}"
+        
+        // Credentials & Telegram Config
         TELEGRAM_TOKEN = credentials('telegram-token')
+        TELEGRAM_CHAT_ID = credentials('telegram-chat-id') 
+        TOPIC_BUILDER = credentials('telegram-topic-builder')
+        TOPIC_ERROR_LOGS = credentials('telegram-topic-error-logs')
+        TOPIC_RELEASE_JSON = credentials('telegram-topic-release-json')
 
         // Replace with your actual AOSP manifest URL and branch
         AOSP_MANIFEST_URL = 'https://github.com/AfterlifeOS/afterlife_manifest.git'
@@ -60,16 +66,39 @@ pipeline {
     }
 
     stages {
+        stage('Notify Start') {
+            steps {
+                script {
+                    sh "chmod +x ${env.WORKSPACE}/builder/*.py"
+                    sh "chmod +x ${env.WORKSPACE}/builder/*.sh"
+                    
+                    echo "Sending Start Notification..."
+                    sh """
+                        python3 ${env.WORKSPACE}/builder/reporter.py \
+                        --status started \
+                        --device "${params.DEVICE}" \
+                        --build-type "${params.RELEASETYPE}" \
+                        --release-status "${params.RELEASE_BUILD}" \
+                        --gms "${params.GMS_VARIANT}" \
+                        --fsgen "${params.FSGEN}" \
+                        --user "${params.BUILD_USER}" \
+                        --chat-id "${TELEGRAM_CHAT_ID}" \
+                        --topic-builder "${TOPIC_BUILDER}" \
+                        --topic-error-logs "${TOPIC_ERROR_LOGS}" \
+                        --topic-release-json "${TOPIC_RELEASE_JSON}" \
+                        --token "${TELEGRAM_TOKEN}" \
+                        --build-url "${env.BUILD_URL}"
+                    """
+                }
+            }
+        }
         stage('Check Quota') {
             steps {
                 script {
                     // Only check if triggered by a valid Telegram User ID
                     if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
                         echo "Checking & Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
-                        sh """
-                            chmod +x ${env.WORKSPACE}/builder/quota_manager.py
-                            python3 ${env.WORKSPACE}/builder/quota_manager.py "${params.BUILD_USER_ID}" "${params.BUILD_USER}"
-                        """
+                        sh "python3 ${env.WORKSPACE}/builder/quota_manager.py '${params.BUILD_USER_ID}' '${params.BUILD_USER}'"
                     } else {
                         echo "Build triggered manually/internally. Skipping quota check."
                     }
@@ -80,7 +109,6 @@ pipeline {
             steps {
                 script {
                     sh """
-                        chmod -R +x ${env.WORKSPACE}/builder/
                         git config --global user.name "HinohArata"
                         git config --global user.email "161218134+HinohArata@users.noreply.github.com"
                         cd $AOSP_SOURCE_DIR
@@ -128,17 +156,8 @@ pipeline {
                 }
             }
         }
-        stage('Uploading Build') {
-            steps {
-                script {
-                    sh """
-                        cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/upload.sh "${params.DEVICE}"
-                    """
-                }
-            }
-        }
     }
+    
     post {
         always {
             script {
@@ -151,5 +170,70 @@ pipeline {
                 }
             }
         }
+        success {
+            script {
+                echo "Build Success! Reporting..."
+                sh """
+                    python3 ${env.WORKSPACE}/builder/reporter.py \
+                    --status success \
+                    --device "${params.DEVICE}" \
+                    --build-type "${params.RELEASETYPE}" \
+                    --release-status "${params.RELEASE_BUILD}" \
+                    --gms "${params.GMS_VARIANT}" \
+                    --fsgen "${params.FSGEN}" \
+                    --user "${params.BUILD_USER}" \
+                    --chat-id "${TELEGRAM_CHAT_ID}" \
+                    --topic-builder "${TOPIC_BUILDER}" \
+                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
+                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
+                    --token "${TELEGRAM_TOKEN}" \
+                    --build-url "${env.BUILD_URL}"
+                """
+            }
+        }
+        failure {
+            script {
+                echo "Build Failed! Reporting failure..."
+                sh """
+                    python3 ${env.WORKSPACE}/builder/reporter.py \
+                    --status failure \
+                    --device "${params.DEVICE}" \
+                    --build-type "${params.RELEASETYPE}" \
+                    --release-status "${params.RELEASE_BUILD}" \
+                    --gms "${params.GMS_VARIANT}" \
+                    --fsgen "${params.FSGEN}" \
+                    --user "${params.BUILD_USER}" \
+                    --chat-id "${TELEGRAM_CHAT_ID}" \
+                    --topic-builder "${TOPIC_BUILDER}" \
+                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
+                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
+                    --token "${TELEGRAM_TOKEN}" \
+                    --build-url "${env.BUILD_URL}"
+                """
+            }
+        }
+        aborted {
+            script {
+                echo "Build Aborted! Reporting..."
+                sh """
+                    python3 ${env.WORKSPACE}/builder/reporter.py \
+                    --status aborted \
+                    --device "${params.DEVICE}" \
+                    --build-type "${params.RELEASETYPE}" \
+                    --release-status "${params.RELEASE_BUILD}" \
+                    --gms "${params.GMS_VARIANT}" \
+                    --fsgen "${params.FSGEN}" \
+                    --user "${params.BUILD_USER}" \
+                    --chat-id "${TELEGRAM_CHAT_ID}" \
+                    --topic-builder "${TOPIC_BUILDER}" \
+                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
+                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
+                    --token "${TELEGRAM_TOKEN}" \
+                    --build-url "${env.BUILD_URL}"
+                """
+            }
+        }
     }
 }
+
+

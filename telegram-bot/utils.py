@@ -26,9 +26,19 @@ DONATE_URL = "https://t.me/donate_zero/6"
 AFL_SUPPORT = "https://t.me/AfterLifeOS"
 SOURCE_CHANGELOGS_URL = "https://afterlifeos.com/changelog/"
 
+import base64
+
+# ... (Previous Imports)
+
 TEST_GROUP_ID = int(os.environ.get("TEST_GROUP_ID", "0"))
 TEST_CHANNEL_ID = os.environ.get("TEST_CHANNEL_ID")
 OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+
+# GitHub Config
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+DB_REPO = os.environ.get("DB_REPO") # Format: username/repo
+GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
+DB_FILE_PATH = "database.json" # Path in repo
 
 # Parse Lists
 def parse_list(env_str):
@@ -47,14 +57,85 @@ MAX_QUOTA_USER = 5
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
 
-# === DATABASE UTILS ===
+# === DATABASE UTILS (GITHUB) ===
+def get_github_headers():
+    return {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
 def load_db():
+    """Load DB from GitHub, fallback to local"""
+    if not GITHUB_TOKEN or not DB_REPO:
+        # Fallback to local
+        if not os.path.exists(DB_FILE): return {"users": {}}
+        try:
+            with open(DB_FILE, 'r') as f: return json.load(f)
+        except: return {"users": {}}
+
+    url = f"https://api.github.com/repos/{DB_REPO}/contents/{DB_FILE_PATH}?ref={GITHUB_BRANCH}"
+    try:
+        resp = requests.get(url, headers=get_github_headers(), timeout=10)
+        if resp.status_code == 200:
+            content = base64.b64decode(resp.json()['content']).decode('utf-8')
+            return json.loads(content)
+        else:
+            print(f"[DB WARN] GitHub Load Failed ({resp.status_code}). Using local.")
+    except Exception as e:
+        print(f"[DB ERROR] GitHub Load Exception: {e}")
+    
+    # Fallback
     if not os.path.exists(DB_FILE): return {"users": {}}
     try:
         with open(DB_FILE, 'r') as f: return json.load(f)
     except: return {"users": {}}
 
+def commit_db_to_github(new_data, commit_message):
+    """Commit new DB state to GitHub"""
+    if not GITHUB_TOKEN or not DB_REPO:
+        print("[DB ERROR] Missing GITHUB_TOKEN or DB_REPO")
+        return False
+    
+    url = f"https://api.github.com/repos/{DB_REPO}/contents/{DB_FILE_PATH}"
+    headers = get_github_headers()
+    
+    try:
+        # 1. Get current SHA
+        sha = None
+        get_resp = requests.get(f"{url}?ref={GITHUB_BRANCH}", headers=headers, timeout=10)
+        if get_resp.status_code == 200:
+            sha = get_resp.json()['sha']
+        
+        # 2. Prepare Payload
+        json_str = json.dumps(new_data, indent=2)
+        b64_content = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+        
+        payload = {
+            "message": commit_message,
+            "content": b64_content,
+            "branch": GITHUB_BRANCH
+        }
+        if sha:
+            payload["sha"] = sha
+            
+        # 3. PUT Request
+        put_resp = requests.put(url, headers=headers, json=payload, timeout=15)
+        if put_resp.status_code in [200, 201]:
+            # Also update local file for consistency
+            try:
+                with open(DB_FILE, 'w') as f: json.dump(new_data, f, indent=2)
+            except: pass
+            return True
+        else:
+            print(f"[DB ERROR] Commit Failed: {put_resp.text}")
+            return False
+            
+    except Exception as e:
+        print(f"[DB ERROR] Commit Exception: {e}")
+        return False
+
 def get_user_data(user_id):
+# ... (rest of the file)
     db = load_db()
     return db["users"].get(str(user_id))
 

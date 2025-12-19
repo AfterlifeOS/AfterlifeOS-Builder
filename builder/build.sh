@@ -62,6 +62,8 @@ fi
 
 # Start building
 echo "Starting make process with all available cores..."
-m afterlife -j$(nproc --all) || { echo "Build failed"; exit 1; }
+# Use pipefail to ensure the exit code of 'm' is preserved even when piping to tee
+set -o pipefail
+m afterlife -j$(nproc --all) 2>&1 | tee "${WORKSPACE}/build.log" || { echo "Build failed"; exit 1; }
 
 echo "Building stage complete."
