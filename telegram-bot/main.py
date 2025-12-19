@@ -27,7 +27,8 @@ from handlers.jenkins import (
     build_command, status_command, quota_command, cancel_command,
     handle_jenkins_callbacks
 )
-from handlers.admin import add_user_command, remove_user_command # Import Admin Handler
+from handlers.admin import add_user_command, remove_user_command
+from handlers.general import start_command, help_command
 
 def get_jenkins_server():
     if not JENKINS_URL: return None
@@ -66,13 +67,20 @@ async def main():
 
     # 3. Register Handlers
     
+    # --- GENERAL HANDLERS ---
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+
+    # --- ADMIN HANDLERS ---
+    app.add_handler(CommandHandler("adduser", add_user_command))
+    app.add_handler(CommandHandler("removeuser", remove_user_command))
+
     # --- JENKINS HANDLERS ---
     app.add_handler(CommandHandler("build", build_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("quota", quota_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
-    app.add_handler(CommandHandler("adduser", add_user_command)) # Register Add User
-    app.add_handler(CommandHandler("removeuser", remove_user_command)) # Register Remove User
+    
     # Regex pattern for Jenkins Callbacks (starts with build_)
     app.add_handler(CallbackQueryHandler(handle_jenkins_callbacks, pattern=r"^(build_).*"))
 

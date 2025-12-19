@@ -91,7 +91,7 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     role, used, remaining = get_quota_status(uid)
     if not role:
-        await update.message.reply_text("⛔ Not registered.")
+        await update.message.reply_text("⛔ **Not registered.** Ask an admin to add you.", parse_mode="Markdown")
         return
 
     now = datetime.now(timezone.utc)
@@ -100,18 +100,18 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     m, _ = divmod(r, 60)
     
     lim = "Unlimited" if role == ROLE_ADMIN else f"{MAX_QUOTA_USER}"
-    msg = (f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset: {h}h {m}m")
+    msg = (f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset in: {h}h {m}m")
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not get_user_data(uid):
-        await update.message.reply_text("⛔ Not registered.")
+        await update.message.reply_text("⛔ **Not registered.**", parse_mode="Markdown")
         return
 
     server = get_jenkins(context)
     if not server:
-        await update.message.reply_text("⚠️ Jenkins disconnected.")
+        await update.message.reply_text("⚠️ **Jenkins disconnected.**", parse_mode="Markdown")
         return
 
     try:
@@ -120,7 +120,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         linfo = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, lnum)
         
         msg = "<b>🔨 Jenkins Status</b>\n\n"
-        # Ensure URL ends with / before appending pipeline-overview, or handle trailing slash
         base_url = linfo['url'].rstrip('/')
         pipeline_url = f"{base_url}/pipeline-overview"
         
@@ -141,14 +140,19 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role, _, rem = get_quota_status(uid)
     
     if role is None:
-        await update.message.reply_text("⛔ Unauthorized.")
+        await update.message.reply_text("⛔ **Unauthorized.** Ask an admin to add you.", parse_mode="Markdown")
         return
     if role != ROLE_ADMIN and rem <= 0:
-        await update.message.reply_text("⛔ Quota Exceeded.")
+        await update.message.reply_text("⛔ **Quota Exceeded.** Please wait for reset.", parse_mode="Markdown")
         return
 
     if not context.args:
-        await update.message.reply_text("Usage: /build <device> [url]")
+        await update.message.reply_text(
+            "⚠️ **Invalid Usage**\n\n"
+            "Format: `/build <device> [manifest_url]`\n"
+            "Example: `/build walleye`", 
+            parse_mode="Markdown"
+        )
         return
 
     dev = context.args[0]
@@ -164,7 +168,7 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['pending_build'] = params
     
     lim_str = "Unlimited" if role == ROLE_ADMIN else f"{rem} left"
-    msg = f"<b>🛠 Build Config</b>\n👤 {params['BUILD_USER']} ({lim_str})\n📱 {dev}\n\n<i>Adjust & Start.</i>"
+    msg = f"<b>🛠 Build Config</b>\n👤 {params['BUILD_USER']} ({lim_str})\n📱 {dev}\n\n<i>Adjust settings & Start.</i>"
     await update.message.reply_text(msg, reply_markup=get_build_menu_keyboard(params), parse_mode=ParseMode.HTML)
 
 async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,36 +179,44 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
     if data_str.startswith("build_action:"):
         act = data_str.split(":")[1]
         if act == "cancel":
-            await query.edit_message_text("❌ Cancelled.")
+            await query.edit_message_text("❌ **Cancelled by user.**", parse_mode="Markdown")
             if 'pending_build' in context.user_data: del context.user_data['pending_build']
         elif act == "start":
             # Re-check quota
             role, _, rem = get_quota_status(query.from_user.id)
             if role != ROLE_ADMIN and rem <= 0:
-                await query.answer("Quota exceeded!", show_alert=True)
+                await query.answer("⛔ Quota exceeded!", show_alert=True)
                 return
             
             p = context.user_data.get('pending_build')
             if not p:
-                await query.edit_message_text("⚠️ Expired.")
+                await query.edit_message_text("⚠️ **Session Expired.** Please run /build again.", parse_mode="Markdown")
                 return
             
             srv = get_jenkins(context)
             if not srv:
-                await query.answer("Jenkins Down", show_alert=True)
+                await query.answer("⚠️ Jenkins Unreachable", show_alert=True)
                 return
 
             try:
                 await asyncio.to_thread(srv.build_job, JENKINS_JOB_NAME, parameters=p)
-                await query.edit_message_text(f"✅ <b>Queued!</b>\nDevice: {p['DEVICE']}\nQuota updates on success.", parse_mode=ParseMode.HTML)
+                await query.edit_message_text(f"✅ <b>Job Queued!</b>\nDevice: {p['DEVICE']}\nQuota will update on success.", parse_mode=ParseMode.HTML)
             except Exception as e:
-                await query.edit_message_text(f"❌ Failed: {e}")
+                await query.edit_message_text(f"❌ Failed to queue: {e}")
 
     # BUILD SET
     elif data_str.startswith("build_set:"):
         k = data_str.split(":")[1]
         p = context.user_data.get('pending_build')
         if not p: return
+        
+        # --- SECURITY CHECK: FULL CLEAN ---
+        if k == 'FULLCLEAN':
+            role, _, _ = get_quota_status(query.from_user.id)
+            if role != ROLE_ADMIN:
+                await query.answer("⛔ Full Clean is restricted to Admins!", show_alert=True)
+                return
+
         opts = BUILD_OPTIONS.get(k)
         if opts:
             try: p[k] = opts[(opts.index(p[k])+1)%len(opts)]

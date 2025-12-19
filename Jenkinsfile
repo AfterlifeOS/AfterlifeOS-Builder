@@ -99,7 +99,7 @@ pipeline {
                     // Only check if triggered by a valid Telegram User ID
                     if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
                         echo "Checking & Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
-                        sh "python3 ${env.WORKSPACE}/builder/quota_manager.py '${params.BUILD_USER_ID}' '${params.BUILD_USER}'"
+                        sh "python3 ${env.WORKSPACE}/builder/quota_manager.py '${params.BUILD_USER_ID}' '${params.BUILD_USER}' '${params.FULLCLEAN}'"
                     } else {
                         echo "Build triggered manually/internally. Skipping quota check."
                     }

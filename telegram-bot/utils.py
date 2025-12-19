@@ -43,7 +43,13 @@ DB_FILE_PATH = "database.json" # Path in repo
 # Parse Lists
 def parse_list(env_str):
     if not env_str: return []
-    return [int(x.strip()) for x in env_str.split(",") if x.strip().isdigit()]
+    result = []
+    for x in env_str.split(","):
+        try:
+            result.append(int(x.strip()))
+        except ValueError:
+            pass
+    return result
 
 ALLOWED_CHAT_IDS = parse_list(os.environ.get("ALLOWED_CHAT_IDS", ""))
 if TEST_GROUP_ID != 0 and TEST_GROUP_ID not in ALLOWED_CHAT_IDS:

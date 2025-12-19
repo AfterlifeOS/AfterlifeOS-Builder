@@ -83,22 +83,31 @@ def format_post(data, posted_by, notes_list=None):
 
 # === HANDLERS ===
 async def post_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.id not in ALLOWED_CHAT_IDS: return
-    if update.effective_user.id not in ADMIN_USER_IDS: return
+    if update.effective_chat.id not in ALLOWED_CHAT_IDS:
+        await update.message.reply_text("⚠️ This chat is not allowed.")
+        return
+    if update.effective_user.id not in ADMIN_USER_IDS:
+        await update.message.reply_text("⛔ Admin Access Only.")
+        return
+    
+    redis_client = context.bot_data.get("redis")
+    if not redis_client:
+        await update.message.reply_text("❌ Redis not connected.")
+        return
     
     if not context.args:
-        await update.message.reply_text("Usage: /post <codename>")
+        await update.message.reply_text("⚠️ **Usage:** `/post <codename>`", parse_mode="Markdown")
         return
 
     dev = context.args[0]
     data = fetch_rom_data(dev)
     if not data:
-        await update.message.reply_text("❌ Data not found.")
+        await update.message.reply_text("❌ Data not found for this device.")
         return
 
-    banner = await run_redis_command(context.bot_data["redis"], "get", "banner_file_id")
+    banner = await run_redis_command(redis_client, "get", "banner_file_id")
     if not banner:
-        await update.message.reply_text("⚠️ Set banner first (/setbanner).")
+        await update.message.reply_text("⚠️ **Banner not set.** Use `/setbanner` first.", parse_mode="Markdown")
         return
 
     poster = update.effective_user.username or update.effective_user.first_name

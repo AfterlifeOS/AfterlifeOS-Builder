@@ -16,7 +16,7 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_db_admin = user_data.get("role") == ROLE_ADMIN
     
     if not (is_env_admin or is_db_admin):
-        await update.message.reply_text("⛔ **Access Denied:** You are not an admin.")
+        await update.message.reply_text("⛔ **Access Denied:** Admin only command.")
         return
 
     # --- 2. Parse Arguments ---
@@ -24,7 +24,8 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
-            "⚠️ **Usage:** `/adduser <TelegramID> <Username> [role]`\n"
+            "⚠️ **Invalid Usage**\n\n"
+            "Format: `/adduser <TelegramID> <Username> [role]`\n"
             "Example: `/adduser 123456789 user123 admin`",
             parse_mode="Markdown"
         )
@@ -81,14 +82,15 @@ async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     is_db_admin = user_data.get("role") == ROLE_ADMIN
     
     if not (is_env_admin or is_db_admin):
-        await update.message.reply_text("⛔ **Access Denied:** You are not an admin.")
+        await update.message.reply_text("⛔ **Access Denied:** Admin only command.")
         return
 
     # --- 2. Parse Arguments ---
     args = context.args
     if len(args) < 1:
         await update.message.reply_text(
-            "⚠️ **Usage:** `/removeuser <TelegramID>`\n"
+            "⚠️ **Invalid Usage**\n\n"
+            "Format: `/removeuser <TelegramID>`\n"
             "Example: `/removeuser 123456789`",
             parse_mode="Markdown"
         )

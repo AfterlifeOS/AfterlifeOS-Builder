@@ -71,11 +71,14 @@ def save_db(data):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: quota_manager.py <USER_ID> <USERNAME>")
+        print("Usage: quota_manager.py <USER_ID> <USERNAME> [FULL_CLEAN]")
         sys.exit(1)
 
     user_id = sys.argv[1]
     username = sys.argv[2]
+    # Argumen ke-3 opsional, default "No"
+    is_full_clean = sys.argv[3] if len(sys.argv) > 3 else "No"
+    
     branch = get_target_branch()
 
     # STEP 1: Sync with Remote First
@@ -91,6 +94,11 @@ def main():
 
     user_data = db["users"][user_id]
     role = user_data.get("role", "user")
+    
+    # --- SECURITY CHECK: FULL CLEAN ---
+    if is_full_clean == "Yes" and role != ROLE_ADMIN:
+        print("⛔ SECURITY ALERT: Full Clean is restricted to Admins only!")
+        sys.exit(1)
     
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     last_date = user_data.get("last_build_date", "")
