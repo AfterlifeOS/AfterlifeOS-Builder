@@ -13,9 +13,32 @@ FULLCLEAN="$4"
 
 echo "Starting Building stage..."
 
+# --- SMART CLEANUP LOGIC ---
+LAST_DEVICE_FILE=".last_build_device.tmp"
+if [ -f "$LAST_DEVICE_FILE" ]; then
+    LAST_DEVICE=$(cat "$LAST_DEVICE_FILE")
+    if [ -n "$LAST_DEVICE" ] && [ "$LAST_DEVICE" != "$DEVICE" ]; then
+        echo "⚠️ Device changed from '$LAST_DEVICE' to '$DEVICE'."
+        
+        # 1. Clean up OLD device output to save space
+        if [ -d "out/target/product/$LAST_DEVICE" ]; then
+            echo "Removing output directory of previous device ($LAST_DEVICE)..."
+            rm -rf "out/target/product/$LAST_DEVICE"
+        fi
+        
+        # 2. Force INSTALLCLEAN for the NEW device to avoid artifact mixing
+        if [ "$INSTALLCLEAN" != "Yes" ]; then
+            echo "Forcing INSTALLCLEAN='Yes' due to device switch."
+            INSTALLCLEAN="Yes"
+        fi
+    fi
+else
+    echo "No previous build record found. Treating as fresh start."
+fi
+
 # Saving current device
 echo "Saving current device name for next build's cleanup..."
-echo "$DEVICE" > .last_build_device.tmp
+echo "$DEVICE" > "$LAST_DEVICE_FILE"
 
 # Source build environment
 echo "Sourcing build/envsetup.sh..."

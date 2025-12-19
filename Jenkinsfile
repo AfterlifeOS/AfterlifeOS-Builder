@@ -81,7 +81,7 @@ pipeline {
                     sh "chmod +x ${env.WORKSPACE}/builder/*.sh"
                     
                     // Clean up old logs to prevent false reporting
-                    sh "rm -f ${env.WORKSPACE}/build.log ${env.WORKSPACE}/sync.log"
+                    sh "rm -f ${env.WORKSPACE}/build.log ${env.WORKSPACE}/sync.log ${env.WORKSPACE}/.quota_exceeded ${AOSP_SOURCE_DIR}/out/error.log"
                     
                     echo "Sending Start Notification..."
                     sh '''
@@ -202,8 +202,12 @@ pipeline {
         }
         failure {
             script {
-                echo "Build Failed! Reporting failure..."
-                sendReport('failure')
+                if (fileExists("${env.WORKSPACE}/.quota_exceeded")) {
+                    echo "Quota exceeded. Custom notification already sent. Skipping generic failure report."
+                } else {
+                    echo "Build Failed! Reporting failure..."
+                    sendReport('failure')
+                }
             }
         }
         aborted {
