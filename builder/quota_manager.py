@@ -11,6 +11,53 @@ DB_PATH = os.path.join(SCRIPT_DIR, "..", "database.json")
 MAX_QUOTA = 5
 ROLE_ADMIN = "admin"
 
+def run_git(args, check=True):
+    """Helper to run git commands"""
+    try:
+        subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(f"[GIT ERROR] Command {' '.join(args)} failed.")
+        if check: raise e
+
+def get_target_branch():
+    env_branch = os.environ.get("GIT_BRANCH") or os.environ.get("BRANCH_NAME")
+    if env_branch:
+        return env_branch.split("origin/")[1] if "origin/" in env_branch else env_branch
+    
+    try:
+        branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        return "main" if branch == "HEAD" else branch
+    except:
+        return "main"
+
+def prepare_git_env(branch):
+    print(f"[GIT] Preparing environment on branch: {branch}...")
+    # Ignore permission changes (chmod +x) to avoid dirty tree errors
+    run_git(['git', 'config', 'core.filemode', 'false'], check=False)
+    
+    run_git(['git', 'config', 'user.email', 'bot@jenkins.local'], check=False)
+    run_git(['git', 'config', 'user.name', 'Jenkins Bot'], check=False)
+    
+    # 1. Stash any dirty changes to allow pull
+    run_git(['git', 'stash'], check=False)
+    
+    # 2. Pull latest changes
+    print(f"[GIT] Pulling latest data from {branch}...")
+    run_git(['git', 'pull', '--rebase', 'origin', branch])
+
+def finalize_git_changes(username, branch):
+    print("[GIT] Committing and Pushing...")
+    try:
+        run_git(['git', 'add', DB_PATH])
+        run_git(['git', 'commit', '-m', f"quota: Update build quota for {username}"])
+        run_git(['git', 'push', 'origin', f"HEAD:{branch}"])
+        print("[GIT] Success.")
+    except Exception as e:
+        print(f"[GIT WARN] Push failed: {e}")
+    finally:
+        # 3. Restore stashed changes (optional, ignore errors if conflict)
+        run_git(['git', 'stash', 'pop'], check=False)
+
 def load_db():
     if not os.path.exists(DB_PATH):
         print(f"Error: {DB_PATH} not found!")
@@ -22,39 +69,21 @@ def save_db(data):
     with open(DB_PATH, 'w') as f:
         json.dump(data, f, indent=2)
 
-def git_commit_push(username):
-    try:
-        branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
-        print(f"Committing to branch: {branch}")
-        
-        # Configure Git if not already set (for CI environment)
-        subprocess.run(['git', 'config', 'user.email', 'bot@jenkins.local'], check=False)
-        subprocess.run(['git', 'config', 'user.name', 'Jenkins Bot'], check=False)
-        
-        subprocess.run(['git', 'add', DB_PATH], check=True)
-        subprocess.run(['git', 'commit', '-m', f"quota: Update build quota for {username}"], check=True)
-        
-        # Pull first to avoid conflicts
-        subprocess.run(['git', 'pull', '--rebase', 'origin', branch], check=True)
-        subprocess.run(['git', 'push', 'origin', branch], check=True)
-        print("Git push successful.")
-    except subprocess.CalledProcessError as e:
-        print(f"Git Error: {e}")
-        # Don't fail the build just because git failed
-        sys.exit(0) 
-
 def main():
-    # Arguments passed from Jenkins: script.py <USER_ID> <USERNAME>
     if len(sys.argv) < 3:
         print("Usage: quota_manager.py <USER_ID> <USERNAME>")
         sys.exit(1)
 
     user_id = sys.argv[1]
     username = sys.argv[2]
-    
-    print(f"Processing quota for User: {username} (ID: {user_id})")
+    branch = get_target_branch()
 
-    db = load_db()
+    # STEP 1: Sync with Remote First
+    prepare_git_env(branch)
+
+    # STEP 2: Process Logic
+    print(f"Processing quota for User: {username} (ID: {user_id})")
+    db = load_db() # Reload DB after pull to ensure we have latest
     
     if user_id not in db["users"]:
         print("User not found in DB. Skipping quota update.")
@@ -63,7 +92,6 @@ def main():
     user_data = db["users"][user_id]
     role = user_data.get("role", "user")
     
-    # Date Logic
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     last_date = user_data.get("last_build_date", "")
     
@@ -72,22 +100,20 @@ def main():
         user_data["daily_count"] = 0
         user_data["last_build_date"] = today_str
     
-    # CHECK QUOTA LIMIT
+    # CHECK LIMIT
     current_count = user_data.get("daily_count", 0)
     if role != ROLE_ADMIN and current_count >= MAX_QUOTA:
         print(f"[ERROR] Quota Exceeded! Used: {current_count}/{MAX_QUOTA}")
-        sys.exit(1) # Fail the build immediately
+        sys.exit(1) 
 
-    # INCREMENT & SAVE
+    # INCREMENT
     user_data["daily_count"] += 1
-    print(f"Quota Approved. Incrementing counter to {user_data['daily_count']}")
-
-    # Update Username just in case
+    # Update Username
     user_data["username"] = username
     
-    # Save & Push
+    # STEP 3: Save & Push
     save_db(db)
-    git_commit_push(username)
+    finalize_git_changes(username, branch)
 
 if __name__ == "__main__":
     main()

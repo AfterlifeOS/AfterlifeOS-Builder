@@ -67,13 +67,17 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         linfo = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, lnum)
         
         msg = "<b>🔨 Jenkins Status</b>\n\n"
+        # Ensure URL ends with / before appending pipeline-overview, or handle trailing slash
+        base_url = linfo['url'].rstrip('/')
+        pipeline_url = f"{base_url}/pipeline-overview"
+        
         if linfo['building']:
             dur = (datetime.now().timestamp()*1000) - linfo['timestamp']
             dmin = int((dur/1000)/60)
             p = {x['name']: x['value'] for x in linfo['actions'][0].get('parameters', [])}
-            msg += f"🟢 <b>Building:</b> #{lnum}\n📱 {p.get('DEVICE')}\n👤 {p.get('BUILD_USER','?')}\n⏱ {dmin} mins\n🔗 <a href='{linfo['url']}'>Pipeline</a>"
+            msg += f"🟢 <b>Building:</b> #{lnum}\n📱 {p.get('DEVICE')}\n👤 {p.get('BUILD_USER','?')}\n⏱ {dmin} mins\n🔗 <a href='{pipeline_url}'>Pipeline Overview</a>"
         else:
-            msg += f"💤 <b>Idle</b>. Last: #{lnum}\nResult: {linfo['result']}\n🔗 <a href='{linfo['url']}'>Result</a>"
+            msg += f"💤 <b>Idle</b>. Last: #{lnum}\nResult: {linfo['result']}\n🔗 <a href='{pipeline_url}'>View Result</a>"
         
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
     except Exception as e:
