@@ -116,9 +116,7 @@ pipeline {
                         git config --global user.name "HinohArata"
                         git config --global user.email "161218134+HinohArata@users.noreply.github.com"
                         cd $AOSP_SOURCE_DIR
-                        # Pipe output to sync.log for reporter, and use pipefail to catch errors
-                        set -o pipefail
-                        ${env.WORKSPACE}/builder/sync.sh "${params.LOCAL_MANIFEST_URL}" 2>&1 | tee "${env.WORKSPACE}/sync.log"
+                        ${env.WORKSPACE}/builder/sync.sh "${params.LOCAL_MANIFEST_URL}"
                     """
                 }
             }
