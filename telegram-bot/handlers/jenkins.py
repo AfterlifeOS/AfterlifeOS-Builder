@@ -200,7 +200,7 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
 
             try:
                 await asyncio.to_thread(srv.build_job, JENKINS_JOB_NAME, parameters=p)
-                await query.edit_message_text(f"✅ <b>Job Queued!</b>\nDevice: {p['DEVICE']}\nQuota will update on success.", parse_mode=ParseMode.HTML)
+                await query.edit_message_text(f"✅ <b>Job Queued!</b>\nDevice: {p['DEVICE']}\nCheck Builder Topic for start notification.", parse_mode=ParseMode.HTML)
             except Exception as e:
                 await query.edit_message_text(f"❌ Failed to queue: {e}")
 
