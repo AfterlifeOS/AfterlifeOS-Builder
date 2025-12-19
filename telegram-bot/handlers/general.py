@@ -70,7 +70,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`/cancel <BuildID>` - Cancel your running build.\n"
         "`/quota` - Check your daily build quota.\n"
         "`/status` - View current Jenkins status.\n"
-        "`/banner <device>` - View OTA banner for a device.\n"
+        "`/banner` - View OTA banner.\n"
         "`/listuser` - List all registered users.\n\n"
     )
 
@@ -80,9 +80,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "`/adduser <ID> <Name> [role]` - Add/Update a user in DB.\n"
             "`/removeuser <ID>` - Remove a user from DB.\n"
             "`/post <device>` - Post OTA update to channel.\n"
-            "`/setbanner <device> <image>` - Set banner (Reply to image).\n"
-            "`/removebanner <device>` - Remove banner.\n"
-            "_(Admins have unlimited quota and can cancel any build)_\n\n"
+            "`/setbanner` - Set banner (Reply to image).\n"
+            "`/removebanner` - Remove banner.\n"
+            "_(Admins and Owner have unlimited quota and can cancel any build)_\n\n"
         )
     
     if is_owner:
