@@ -24,8 +24,16 @@ pipeline {
         AOSP_SOURCE_DIR = "$HOME/android/source"
 
         // Global Variable
-        FULL_CLEAN = "${(params.FULLCLEAN == 'Yes') ? 'true' : 'false'}"
+        DEVICE = "${params.DEVICE}"
+        RELEASETYPE = "${params.RELEASETYPE}"
+        INSTALLCLEAN = "${params.INSTALLCLEAN}"
+        GMS_VARIANT = "${params.GMS_VARIANT}"
+        FSGEN = "${params.FSGEN}"
+        BUILD_USER = "${params.BUILD_USER}"
+        BUILD_USER_ID = "${params.BUILD_USER_ID}"
+        FULLCLEAN = "${(params.FULLCLEAN == 'Yes') ? 'true' : 'false'}"
         RELEASE_BUILD = "${(params.RELEASE_BUILD == 'Yes') ? 'true' : 'false'}"
+        LOCAL_MANIFEST = "${params.LOCAL_MANIFEST_URL}"
         
         // Credentials & Telegram Config
         TELEGRAM_TOKEN = credentials('telegram-token')
@@ -76,25 +84,25 @@ pipeline {
                     sh "rm -f ${env.WORKSPACE}/build.log ${env.WORKSPACE}/sync.log"
                     
                     echo "Sending Start Notification..."
-                    sh """
-                        python3 ${env.WORKSPACE}/builder/reporter.py \
+                    sh '''
+                        python3 ${WORKSPACE}/builder/reporter.py \
                         --status started \
-                        --device "${params.DEVICE}" \
-                        --build-type "${params.RELEASETYPE}" \
-                        --release-status "${params.RELEASE_BUILD}" \
-                        --gms "${params.GMS_VARIANT}" \
-                        --fsgen "${params.FSGEN}" \
-                        --install-clean "${params.INSTALLCLEAN}" \
-                        --full-clean "${params.FULLCLEAN}" \
-                        --user "${params.BUILD_USER}" \
+                        --device "${DEVICE}" \
+                        --build-type "${RELEASETYPE}" \
+                        --release-status "${RELEASE_BUILD}" \
+                        --gms "${GMS_VARIANT}" \
+                        --fsgen "${FSGEN}" \
+                        --install-clean "${INSTALLCLEAN}" \
+                        --full-clean "${FULLCLEAN}" \
+                        --user "${BUILD_USER}" \
                         --chat-id "${TELEGRAM_CHAT_ID}" \
                         --topic-builder "${TOPIC_BUILDER}" \
                         --topic-error-logs "${TOPIC_ERROR_LOGS}" \
                         --topic-release-json "${TOPIC_RELEASE_JSON}" \
                         --token "${TELEGRAM_TOKEN}" \
-                        --build-url "${env.BUILD_URL}" \
+                        --build-url "${BUILD_URL}" \
                         --source-dir "${AOSP_SOURCE_DIR}"
-                    """
+                    '''
                 }
             }
         }
@@ -102,9 +110,9 @@ pipeline {
             steps {
                 script {
                     // Only check if triggered by a valid Telegram User ID
-                    if (params.BUILD_USER_ID != '0' && params.BUILD_USER_ID != '') {
-                        echo "Checking & Updating Quota for User: ${params.BUILD_USER} (${params.BUILD_USER_ID})"
-                        sh "python3 ${env.WORKSPACE}/builder/quota_manager.py '${params.BUILD_USER_ID}' '${params.BUILD_USER}' '${params.FULLCLEAN}'"
+                    if (BUILD_USER_ID != '0' && BUILD_USER_ID != '') {
+                        echo "Checking & Updating Quota for User: ${BUILD_USER} (${BUILD_USER_ID})"
+                        sh "python3 ${env.WORKSPACE}/builder/quota_manager.py '${BUILD_USER_ID}' '${BUILD_USER}' '${FULLCLEAN}'"
                     } else {
                         echo "Build triggered manually/internally. Skipping quota check."
                     }
@@ -114,36 +122,36 @@ pipeline {
         stage('Syncing Source') {
             steps {
                 script {
-                    sh """
+                    sh '''
                         git config --global user.name "HinohArata"
                         git config --global user.email "161218134+HinohArata@users.noreply.github.com"
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/sync.sh "${params.LOCAL_MANIFEST_URL}"
-                    """
+                        ${WORKSPACE}/builder/sync.sh "${LOCAL_MANIFEST}"
+                    '''
                 }
             }
         }
         stage('Set GMS Variant') {
-            when { expression { params.GMS_VARIANT != 'Tree default' } }
+            when { expression { GMS_VARIANT != 'Tree default' } }
             steps {
                 script {
-                    sh """
-                        echo "GMS Variant is set to '${params.GMS_VARIANT}'. Applying changes..."
+                    sh '''
+                        echo "GMS Variant is set to '${GMS_VARIANT}'. Applying changes..."
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/gms_variant_control.sh apply "${params.DEVICE}" "${params.GMS_VARIANT}"
-                    """
+                        ${WORKSPACE}/builder/gms_variant_control.sh apply "${DEVICE}" "${GMS_VARIANT}"
+                    '''
                 }
             }
         }
         stage('Modify FSGen') {
-            when { expression { params.FSGEN == 'Disable' } }
+            when { expression { FSGEN == 'Disable' } }
             steps {
                 script {
-                    sh """
+                    sh '''
                         echo "FSGen is disabled. Modifying Android.bp..."
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/fsgen_control.sh modify
-                    """
+                        ${WORKSPACE}/builder/fsgen_control.sh modify
+                    '''
                 }
             }
         }
@@ -151,14 +159,14 @@ pipeline {
         stage('Building') {
             steps {
                 script {
-                    sh """
+                    sh '''
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/build.sh \
-                        "${params.DEVICE}" \
-                        "${params.RELEASETYPE}" \
-                        "${params.INSTALLCLEAN}" \
-                        "${params.FULLCLEAN}"
-                    """
+                        ${WORKSPACE}/builder/build.sh \
+                        "${DEVICE}" \
+                        "${RELEASETYPE}" \
+                        "${INSTALLCLEAN}" \
+                        "${FULLCLEAN}"
+                    '''
                 }
             }
         }
@@ -168,97 +176,66 @@ pipeline {
         always {
             script {
                 // Restore FSGen if needed
-                if (params.FSGEN == 'Disable') {
-                    sh """
+                if (FSGEN == 'Disable') {
+                    sh '''
                         echo "Restoring Android.bp..."
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/fsgen_control.sh restore
-                    """
+                        ${WORKSPACE}/builder/fsgen_control.sh restore
+                    '''
                 }
                 
                 // Restore GMS Variant if needed (Check if GMS was modified)
-                if (params.GMS_VARIANT != 'Tree default') {
-                     sh """
+                if (GMS_VARIANT != 'Tree default') {
+                     sh '''
                         echo "Restoring GMS Variant (Makefile)..."
                         cd $AOSP_SOURCE_DIR
-                        ${env.WORKSPACE}/builder/gms_variant_control.sh restore "${params.DEVICE}" "ignored"
-                    """
+                        ${WORKSPACE}/builder/gms_variant_control.sh restore "${DEVICE}" "ignored"
+                     '''
                 }
             }
         }
         success {
             script {
                 echo "Build Success! Reporting..."
-                sh """
-                    python3 ${env.WORKSPACE}/builder/reporter.py \
-                    --status success \
-                    --device "${params.DEVICE}" \
-                    --build-type "${params.RELEASETYPE}" \
-                    --release-status "${params.RELEASE_BUILD}" \
-                    --gms "${params.GMS_VARIANT}" \
-                    --fsgen "${params.FSGEN}" \
-                    --install-clean "${params.INSTALLCLEAN}" \
-                    --full-clean "${params.FULLCLEAN}" \
-                    --user "${params.BUILD_USER}" \
-                    --chat-id "${TELEGRAM_CHAT_ID}" \
-                    --topic-builder "${TOPIC_BUILDER}" \
-                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
-                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
-                    --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}" \
-                    --source-dir "${AOSP_SOURCE_DIR}"
-                """
+                sendReport('success')
             }
         }
         failure {
             script {
                 echo "Build Failed! Reporting failure..."
-                sh """
-                    python3 ${env.WORKSPACE}/builder/reporter.py \
-                    --status failure \
-                    --device "${params.DEVICE}" \
-                    --build-type "${params.RELEASETYPE}" \
-                    --release-status "${params.RELEASE_BUILD}" \
-                    --gms "${params.GMS_VARIANT}" \
-                    --fsgen "${params.FSGEN}" \
-                    --install-clean "${params.INSTALLCLEAN}" \
-                    --full-clean "${params.FULLCLEAN}" \
-                    --user "${params.BUILD_USER}" \
-                    --chat-id "${TELEGRAM_CHAT_ID}" \
-                    --topic-builder "${TOPIC_BUILDER}" \
-                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
-                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
-                    --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}" \
-                    --source-dir "${AOSP_SOURCE_DIR}"
-                """
+                sendReport('failure')
             }
         }
         aborted {
             script {
                 echo "Build Aborted! Reporting..."
-                sh """
-                    python3 ${env.WORKSPACE}/builder/reporter.py \
-                    --status aborted \
-                    --device "${params.DEVICE}" \
-                    --build-type "${params.RELEASETYPE}" \
-                    --release-status "${params.RELEASE_BUILD}" \
-                    --gms "${params.GMS_VARIANT}" \
-                    --fsgen "${params.FSGEN}" \
-                    --install-clean "${params.INSTALLCLEAN}" \
-                    --full-clean "${params.FULLCLEAN}" \
-                    --user "${params.BUILD_USER}" \
-                    --chat-id "${TELEGRAM_CHAT_ID}" \
-                    --topic-builder "${TOPIC_BUILDER}" \
-                    --topic-error-logs "${TOPIC_ERROR_LOGS}" \
-                    --topic-release-json "${TOPIC_RELEASE_JSON}" \
-                    --token "${TELEGRAM_TOKEN}" \
-                    --build-url "${env.BUILD_URL}" \
-                    --source-dir "${AOSP_SOURCE_DIR}"
-                """
+                sendReport('aborted')
             }
         }
     }
 }
 
-
+/* ---------- Helper ---------- */
+def sendReport(String buildStatus) {
+    withEnv(["BUILD_STATUS_NOTIFICATION=${buildStatus}"]) {
+        sh '''
+            python3 ${WORKSPACE}/builder/reporter.py \
+            --status "${BUILD_STATUS_NOTIFICATION}" \
+            --device "${DEVICE}" \
+            --build-type "${RELEASETYPE}" \
+            --release-status "${RELEASE_BUILD}" \
+            --gms "${GMS_VARIANT}" \
+            --fsgen "${FSGEN}" \
+            --install-clean "${INSTALLCLEAN}" \
+            --full-clean "${FULLCLEAN}" \
+            --user "${BUILD_USER}" \
+            --chat-id "${TELEGRAM_CHAT_ID}" \
+            --topic-builder "${TOPIC_BUILDER}" \
+            --topic-error-logs "${TOPIC_ERROR_LOGS}" \
+            --topic-release-json "${TOPIC_RELEASE_JSON}" \
+            --token "${TELEGRAM_TOKEN}" \
+            --build-url "${BUILD_URL}" \
+            --source-dir "${AOSP_SOURCE_DIR}"
+        '''
+    }
+}
