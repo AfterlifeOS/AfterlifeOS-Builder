@@ -49,7 +49,8 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        build_id = int(context.args[0])
+        # Allow input like "#42" or "42"
+        build_id = int(context.args[0].lstrip('#'))
         status_msg = await update.message.reply_text(f"⏳ Checking Build #{build_id}...")
         
         # 1. Get Build Info to check ownership
@@ -115,24 +116,73 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
+        # 1. Fetch Data
+        queue_info = await asyncio.to_thread(server.get_queue_info)
         jinfo = await asyncio.to_thread(server.get_job_info, JENKINS_JOB_NAME)
+        
+        # 2. Check Running Build
         lnum = jinfo['lastBuild']['number']
         linfo = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, lnum)
         
         msg = "<b>🔨 Jenkins Status</b>\n\n"
-        base_url = linfo['url'].rstrip('/')
-        pipeline_url = f"{base_url}/pipeline-overview"
-        
+        has_activity = False
+
+        # --- RUNNING SECTION ---
         if linfo['building']:
+            has_activity = True
             dur = (datetime.now().timestamp()*1000) - linfo['timestamp']
             dmin = int((dur/1000)/60)
-            p = {x['name']: x['value'] for x in linfo['actions'][0].get('parameters', [])}
-            msg += f"🟢 <b>Building:</b> #{lnum}\n📱 {p.get('DEVICE')}\n👤 {p.get('BUILD_USER','?')}\n⏱ {dmin} mins\n🔗 <a href='{pipeline_url}'>Pipeline Overview</a>"
-        else:
-            msg += f"💤 <b>Idle</b>. Last: #{lnum}\nResult: {linfo['result']}\n🔗 <a href='{pipeline_url}'>View Result</a>"
+            
+            # Extract params safely
+            p = {}
+            if 'actions' in linfo:
+                for a in linfo['actions']:
+                    if 'parameters' in a:
+                        p = {x['name']: x['value'] for x in a['parameters']}
+                        break
+            
+            base_url = linfo['url'].rstrip('/')
+            pipeline_url = f"{base_url}/pipeline-overview"
+            
+            msg += (
+                f"🟢 <b>Running:</b> #{lnum}\n"
+                f"📱 {p.get('DEVICE', 'Unknown')}\n"
+                f"👤 {p.get('BUILD_USER','?')}\n"
+                f"⏱ {dmin} mins\n"
+                f"🔗 <a href='{pipeline_url}'>Pipeline Overview</a>\n\n"
+            )
+
+        # --- QUEUE SECTION ---
+        # Filter queue for our job
+        my_queue = [q for q in queue_info if q['task']['name'] == JENKINS_JOB_NAME]
         
-        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+        if my_queue:
+            has_activity = True
+            msg += "⏳ <b>Queue:</b>\n"
+            for item in my_queue:
+                # Extract params from queue item
+                qp = {}
+                for action in item.get('actions', []):
+                    if 'parameters' in action:
+                        qp = {x['name']: x['value'] for x in action['parameters']}
+                        break
+                
+                q_dev = qp.get('DEVICE', 'Unknown')
+                q_user = qp.get('BUILD_USER', '?')
+                msg += f"• 📱 {q_dev} | 👤 {q_user}\n"
+
+        # --- IDLE SECTION ---
+        if not has_activity:
+            last_res = linfo['result'] or "UNKNOWN"
+            base_url = linfo['url'].rstrip('/')
+            pipeline_url = f"{base_url}/pipeline-overview"
+            msg += f"💤 <b>Idle</b>. Last: #{lnum}\nResult: {last_res}\n🔗 <a href='{pipeline_url}'>View Result</a>"
+        
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         await update.message.reply_text(f"❌ Error: {e}")
 
 async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
