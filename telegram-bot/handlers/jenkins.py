@@ -5,7 +5,7 @@ from telegram.constants import ParseMode
 from datetime import datetime, timezone, timedelta
 from utils import (
     get_quota_status, get_user_data, convert_to_raw_url,
-    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN, ADMIN_USER_IDS
+    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN, ROLE_OWNER, ADMIN_USER_IDS
 )
 
 # === CONSTANTS ===
@@ -100,7 +100,7 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     h, r = divmod((tomorrow - now).seconds, 3600)
     m, _ = divmod(r, 60)
     
-    lim = "Unlimited" if role == ROLE_ADMIN else f"{MAX_QUOTA_USER}"
+    lim = "Unlimited" if role in [ROLE_ADMIN, ROLE_OWNER] else f"{MAX_QUOTA_USER}"
     msg = (f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset in: {h}h {m}m")
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
@@ -192,7 +192,7 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if role is None:
         await update.message.reply_text("⛔ **Unauthorized.** Ask an admin to add you.", parse_mode="Markdown")
         return
-    if role != ROLE_ADMIN and rem <= 0:
+    if role not in [ROLE_ADMIN, ROLE_OWNER] and rem <= 0:
         await update.message.reply_text("⛔ **Quota Exceeded.** Please wait for reset.", parse_mode="Markdown")
         return
 
@@ -217,7 +217,7 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     context.user_data['pending_build'] = params
     
-    lim_str = "Unlimited" if role == ROLE_ADMIN else f"{rem} left"
+    lim_str = "Unlimited" if role in [ROLE_ADMIN, ROLE_OWNER] else f"{rem} left"
     msg = f"<b>🛠 Build Config</b>\n👤 {params['BUILD_USER']} ({lim_str})\n📱 {dev}\n\n<i>Adjust settings & Start.</i>"
     await update.message.reply_text(msg, reply_markup=get_build_menu_keyboard(params), parse_mode=ParseMode.HTML)
 
@@ -234,7 +234,7 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
         elif act == "start":
             # Re-check quota
             role, _, rem = get_quota_status(query.from_user.id)
-            if role != ROLE_ADMIN and rem <= 0:
+            if role not in [ROLE_ADMIN, ROLE_OWNER] and rem <= 0:
                 await query.answer("⛔ Quota exceeded!", show_alert=True)
                 return
             
@@ -263,7 +263,7 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
         # --- SECURITY CHECK: FULL CLEAN ---
         if k == 'FULLCLEAN':
             role, _, _ = get_quota_status(query.from_user.id)
-            if role != ROLE_ADMIN:
+            if role not in [ROLE_ADMIN, ROLE_OWNER]:
                 await query.answer("⛔ Full Clean is restricted to Admins!", show_alert=True)
                 return
 

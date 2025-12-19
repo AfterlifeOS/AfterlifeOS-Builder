@@ -4,12 +4,14 @@ import os
 import sys
 import subprocess
 from datetime import datetime, timezone
+from utils.telegram import TelegramBot
 
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(SCRIPT_DIR, "..", "database.json")
 MAX_QUOTA = 5
 ROLE_ADMIN = "admin"
+ROLE_OWNER = "owner"
 
 def run_git(args, check=True):
     """Helper to run git commands"""
@@ -96,7 +98,7 @@ def main():
     role = user_data.get("role", "user")
     
     # --- SECURITY CHECK: FULL CLEAN ---
-    if is_full_clean == "Yes" and role != ROLE_ADMIN:
+    if is_full_clean == "Yes" and role not in [ROLE_ADMIN, ROLE_OWNER]:
         print("⛔ SECURITY ALERT: Full Clean is restricted to Admins only!")
         sys.exit(1)
     
@@ -110,8 +112,42 @@ def main():
     
     # CHECK LIMIT
     current_count = user_data.get("daily_count", 0)
-    if role != ROLE_ADMIN and current_count >= MAX_QUOTA:
+    if role not in [ROLE_ADMIN, ROLE_OWNER] and current_count >= MAX_QUOTA:
         print(f"[ERROR] Quota Exceeded! Used: {current_count}/{MAX_QUOTA}")
+        
+        # --- NOTIFICATION HANDLER ---
+        token = os.environ.get("TELEGRAM_TOKEN")
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+        topic_id = os.environ.get("TOPIC_BUILDER")
+        
+        if token and chat_id:
+            try:
+                bot = TelegramBot(token)
+                
+                # Calculate Reset Time
+                now = datetime.now(timezone.utc)
+                reset_time = (now.replace(hour=23, minute=59, second=59, microsecond=999999) - now)
+                hours, remainder = divmod(reset_time.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                
+                msg = (
+                    f"⛔ **Quota Exceeded**\n\n"
+                    f"👤 **User:** `{username}`\n"
+                    f"🏷 **Role:** `{role.upper()}`\n"
+                    f"🔢 **Used:** `{current_count}/{MAX_QUOTA}`\n"
+                    f"⏳ **Reset in:** `{hours}h {minutes}m`\n\n"
+                    f"Please wait for the daily reset or ask an admin."
+                )
+                bot.send_message(chat_id, msg, topic_id=topic_id)
+                print("[NOTIF] Quota exceeded notification sent.")
+            except Exception as e:
+                print(f"[NOTIF ERROR] Failed to send notification: {e}")
+
+        # Create marker file for Jenkins pipeline to detect and skip failure report
+        workspace = os.environ.get("WORKSPACE", ".")
+        with open(os.path.join(workspace, ".quota_exceeded"), "w") as f:
+            f.write("true")
+
         sys.exit(1) 
 
     # INCREMENT
