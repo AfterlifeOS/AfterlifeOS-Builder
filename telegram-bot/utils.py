@@ -62,6 +62,7 @@ DB_FILE = os.path.join(base_dir, "..", "database.json")
 MAX_QUOTA_USER = 5
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
+ROLE_OWNER = "owner"
 
 # === DATABASE UTILS (GITHUB) ===
 def get_github_headers():
@@ -154,7 +155,7 @@ def get_quota_status(user_id):
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     used = user_data.get("daily_count", 0) if last_date == today_str else 0
-    limit = 999 if role == ROLE_ADMIN else MAX_QUOTA_USER
+    limit = 999 if role in [ROLE_ADMIN, ROLE_OWNER] else MAX_QUOTA_USER
     return role, used, limit - used
 
 # === REDIS UTILS ===

@@ -1,7 +1,66 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from datetime import datetime, timezone
-from utils import load_db, commit_db_to_github, ADMIN_USER_IDS, ROLE_ADMIN, ROLE_USER
+from utils import ADMIN_USER_IDS, load_db, commit_db_to_github, ROLE_ADMIN, ROLE_USER, ROLE_OWNER
+
+async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    sender_id = str(user.id)
+    
+    # --- 1. Check Owner Permission (DB Based) ---
+    db = load_db()
+    sender_data = db.get("users", {}).get(sender_id, {})
+    sender_role = sender_data.get("role", ROLE_USER)
+    
+    if sender_role != ROLE_OWNER:
+        await update.message.reply_text("⛔ **Access Denied:** Only the Owner can use this command.")
+        return
+
+    # --- 2. Parse Arguments ---
+    # Usage: /setrole <ID> <Role>
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "⚠️ **Invalid Usage**\n\n"
+            "Format: `/setrole <TelegramID> <Role>`\n"
+            f"Roles: `{ROLE_ADMIN}`, `{ROLE_USER}`",
+            parse_mode="Markdown"
+        )
+        return
+
+    target_id = args[0]
+    new_role = args[1].lower()
+    
+    # Validate Role (Owner role cannot be set via command for safety, only admin/user)
+    if new_role not in [ROLE_ADMIN, ROLE_USER]:
+        await update.message.reply_text(f"⚠️ Invalid role. Use `{ROLE_ADMIN}` or `{ROLE_USER}`.", parse_mode="Markdown")
+        return
+
+    # --- 3. Update Database ---
+    # DB is already loaded in Step 1
+    if "users" not in db or target_id not in db["users"]:
+        await update.message.reply_text(f"❌ User ID `{target_id}` not found in database. Add them first.", parse_mode="Markdown")
+        return
+
+    # Update role
+    old_role = db["users"][target_id].get("role", "unknown")
+    db["users"][target_id]["role"] = new_role
+    target_username = db["users"][target_id].get("username", "Unknown")
+
+    status_msg = await update.message.reply_text("⏳ Syncing role change to GitHub...")
+    
+    commit_msg = f"database: Change {target_username} role from {old_role} to {new_role}"
+    if commit_db_to_github(db, commit_msg):
+        msg = (
+            f"✅ **Role Updated**\n\n"
+            f"👤 **User:** `{target_username}` (`{target_id}`)\n"
+            f"🔰 **Old Role:** `{old_role}`\n"
+            f"🆕 **New Role:** `{new_role}`\n"
+            f"☁️ **Synced:** GitHub"
+        )
+        await status_msg.edit_text(msg, parse_mode="Markdown")
+    else:
+        await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
 
 async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
