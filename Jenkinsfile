@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'AfterlifeOS-Builder' }
     options {
         disableConcurrentBuilds()
         ansiColor('xterm')
