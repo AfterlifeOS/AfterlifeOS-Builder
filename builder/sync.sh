@@ -8,35 +8,22 @@ set -o pipefail
 
 LOCAL_MANIFEST_URL="$1"
 LOG_FILE="${WORKSPACE}/sync.log"
+MANIFEST_FILENAME="jenkins_custom_manifest.xml"
+LOCAL_MANIFEST_PATH=".repo/local_manifests/$MANIFEST_FILENAME"
 
 echo "Logging sync output to: $LOG_FILE"
 
 {
     echo "Starting Syncing Source stage..."
 
-    # --- Clean up old error logs ---
-    echo "Cleaning up old error logs..."
-    rm -f out/error.log
-    rm -f out/target/product/*/error.log
-
-    # --- Initialize directories and tracking files ---
-    echo "Ensuring local manifests directory exists..."
-    mkdir -p ".repo/local_manifests" || { echo "Failed to create .repo/local_manifests"; exit 1; }
-
-    # --- Repo Init for main AOSP manifest ---
-    echo "Initializing repo with AOSP main manifest from $AOSP_MANIFEST_URL on branch $AOSP_MANIFEST_BRANCH"
-    repo init -u "$AOSP_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs || { echo "Repo init failed for AOSP main manifest"; exit 1; }
-
-    # --- Handle LOCAL_MANIFEST_URL ---
-    if [ -n "$LOCAL_MANIFEST_URL" ]; then
-        MANIFEST_FILENAME="jenkins_custom_manifest.xml"
-        LOCAL_MANIFEST_PATH=".repo/local_manifests/$MANIFEST_FILENAME"
-
-        # --- CLEANUP BASED ON OLD MANIFEST ---
-        if [ -f "$LOCAL_MANIFEST_PATH" ]; then
-            echo "Found existing local manifest. Cleaning up old trees..."
-            # Extract paths using python to avoid regex fragility
-            OLD_PATHS=$(python3 -c "
+    # --- 1. CLEANUP PREVIOUS CUSTOM MANIFEST (Before Repo Init) ---
+    # We must do this BEFORE repo init because if the old manifest has a bad remote,
+    # repo init might fail even if we intend to replace it later.
+    if [ -f "$LOCAL_MANIFEST_PATH" ]; then
+        echo "Found previous custom manifest ($MANIFEST_FILENAME). Starting cleanup..."
+        
+        # Extract paths using python
+        OLD_PATHS=$(python3 -c "
 import xml.etree.ElementTree as ET
 import os
 try:
@@ -49,38 +36,44 @@ try:
 except Exception as e:
     print('')
 ")
-            
-            if [ -n "$OLD_PATHS" ]; then
-                echo "Removing the following paths from old manifest:"
-                echo "$OLD_PATHS"
-                for path in $OLD_PATHS; do
-                    if [ -d "$path" ]; then
-                        echo "Removing $path..."
-                        rm -rf "$path"
-                    fi
-                done
-            fi
-        fi
-        # -------------------------------------
-
-        echo "Fetching local manifest from: $LOCAL_MANIFEST_URL"
         
-        # Fetch the local manifest content
-        if curl -o "$LOCAL_MANIFEST_PATH" "$LOCAL_MANIFEST_URL"; then
-            echo "Local manifest successfully downloaded to $LOCAL_MANIFEST_PATH"
+        if [ -n "$OLD_PATHS" ]; then
+            echo "Cleaning up trees from previous manifest..."
+            for path in $OLD_PATHS; do
+                if [ -d "$path" ]; then
+                    echo "Removing directory: $path"
+                    rm -rf "$path"
+                fi
+            done
+        fi
+
+        echo "Removing old manifest file: $LOCAL_MANIFEST_PATH"
+        rm -f "$LOCAL_MANIFEST_PATH"
+    fi
+
+    # --- 2. REPO INIT ---
+    echo "Ensuring local manifests directory exists..."
+    mkdir -p ".repo/local_manifests" || { echo "Failed to create .repo/local_manifests"; exit 1; }
+
+    echo "Initializing repo with AOSP main manifest from $AOSP_MANIFEST_URL on branch $AOSP_MANIFEST_BRANCH"
+    repo init -u "$AOSP_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs || { echo "Repo init failed for AOSP main manifest"; exit 1; }
+
+    # --- 3. APPLY NEW CUSTOM MANIFEST ---
+    if [ -n "$LOCAL_MANIFEST_URL" ]; then
+        echo "Fetching new local manifest from: $LOCAL_MANIFEST_URL"
+        if curl -L -o "$LOCAL_MANIFEST_PATH" "$LOCAL_MANIFEST_URL"; then
+            echo "Local manifest successfully downloaded."
         else
-            echo "Failed to download local manifest from $LOCAL_MANIFEST_URL"
+            echo "Failed to download local manifest."
             exit 1
         fi
     else
         echo "No LOCAL_MANIFEST_URL provided. Skipping custom local manifest."
     fi
 
-    # --- Repo Sync ---
-    # The --prune flag will remove projects that are no longer in the manifest.
-    # This is a safer alternative to the previous manual `rm -rf` logic.
+    # --- 4. REPO SYNC ---
     echo "Starting repo sync..."
-    repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j8 || { echo "Repo sync failed"; exit 1; }
+    repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j$(nproc --all) || { echo "Repo sync failed"; exit 1; }
 
     echo "Syncing Source stage complete."
 
