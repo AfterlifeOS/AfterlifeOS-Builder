@@ -115,8 +115,6 @@ def main():
         # 1. Upload Log to Error Logs Topic
         # Prioritize out/error.log (Root of out)
         error_log_root = os.path.join(args.source_dir, 'out', 'error.log')
-        # Also check device specific (just in case)
-        error_log_device = os.path.join(out_dir, 'error.log')
         
         log_file_to_upload = None
         log_caption = f"❌ Error Log - {args.device}"
@@ -124,28 +122,29 @@ def main():
         if os.path.exists(error_log_root):
             print(f"Found error.log at: {error_log_root}")
             log_file_to_upload = error_log_root
-        elif os.path.exists(error_log_device):
-            print(f"Found error.log at: {error_log_device}")
-            log_file_to_upload = error_log_device
         else:
-            # Check for sync.log (Sync Failure)
+            # 3. Check for build.log (Build Failure) - Prioritize this over sync.log
+            # If build.log exists, it means we reached the build stage.
+            build_log = os.path.join(workspace, 'build.log')
             sync_log = os.path.join(workspace, 'sync.log')
-            if os.path.exists(sync_log):
-                 print("error.log not found, found sync.log. Tailing it...")
+            
+            if os.path.exists(build_log):
+                print("error.log not found, found build.log. Tailing it...")
+                temp_log = "build_failure_tail.txt"
+                with open(temp_log, 'w') as f:
+                    f.write(get_file_tail(build_log, 200))
+                log_file_to_upload = temp_log
+                log_caption = f"❌ Build Log - {args.device}"
+            
+            # 4. Check for sync.log (Sync Failure)
+            # Only if build.log doesn't exist (failed before build stage)
+            elif os.path.exists(sync_log):
+                 print("error.log and build.log not found, found sync.log. Tailing it...")
                  temp_log = "sync_failure_tail.txt"
                  with open(temp_log, 'w') as f:
                      f.write(get_file_tail(sync_log, 200))
                  log_file_to_upload = temp_log
                  log_caption = f"❌ Sync Log - {args.device}"
-            else:
-                # Create snippet from build.log (Build Failure)
-                print("error.log and sync.log not found, tailing build.log...")
-                build_log = os.path.join(workspace, 'build.log')
-                if os.path.exists(build_log):
-                    temp_log = "build_failure_tail.txt"
-                    with open(temp_log, 'w') as f:
-                        f.write(get_file_tail(build_log, 200))
-                    log_file_to_upload = temp_log
         
         if log_file_to_upload:
             resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs)

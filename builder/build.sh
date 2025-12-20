@@ -11,6 +11,13 @@ RELEASETYPE="$2"
 INSTALLCLEAN="$3"
 FULLCLEAN="$4"
 
+# Define Log File
+LOG_FILE="${WORKSPACE}/build.log"
+
+# Redirect all stdout and stderr to the log file (and console)
+# This ensures 'lunch' errors and everything else is captured
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo "Starting Building stage..."
 
 # --- SMART CLEANUP LOGIC ---
@@ -63,8 +70,6 @@ fi
 
 # Start building
 echo "Starting make process with all available cores..."
-# Use pipefail to ensure the exit code of 'm' is preserved even when piping to tee
-set -o pipefail
-m afterlife -j$(nproc --all) 2>&1 | tee "${WORKSPACE}/build.log" || { echo "Build failed"; exit 1; }
+m afterlife -j$(nproc --all) || { echo "Build failed"; exit 1; }
 
 echo "Building stage complete."
