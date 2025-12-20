@@ -35,32 +35,57 @@ def get_jenkins(context):
 
 # === HANDLERS ===
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancels a specific Jenkins build ID"""
+    """Cancels a specific Jenkins build ID OR Queue ID"""
     uid = update.effective_user.id
-    # Access check is moved to logic below (Owner or Admin)
-
     server = get_jenkins(context)
+    
     if not server:
         await update.message.reply_text("⚠️ Jenkins is disconnected.")
         return
 
     if not context.args:
-        await update.message.reply_text("⚠️ **Usage:** `/cancel <BuildID>`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ **Usage:** `/cancel <ID>`\nCan be a Build ID (e.g. 65) or Queue ID (e.g. 181)", parse_mode="Markdown")
         return
 
     try:
-        # Allow input like "#42" or "42"
-        build_id = int(context.args[0].lstrip('#'))
-        status_msg = await update.message.reply_text(f"⏳ Checking Build #{build_id}...")
-        
-        # 1. Get Build Info to check ownership
+        target_id = int(context.args[0].lstrip('#'))
+        status_msg = await update.message.reply_text(f"⏳ Checking ID #{target_id}...")
+
+        # --- SCENARIO 1: CHECK QUEUE (Waiting Builds) ---
         try:
-            build_info = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, build_id)
+            queue_info = await asyncio.to_thread(server.get_queue_info)
+            matched_item = next((item for item in queue_info if item['id'] == target_id), None)
+            
+            if matched_item:
+                # Check Ownership in Queue
+                q_params = {}
+                for action in matched_item.get('actions', []):
+                    if 'parameters' in action:
+                        q_params = {x['name']: x['value'] for x in action['parameters']}
+                        break
+                
+                owner_id = str(q_params.get('BUILD_USER_ID', ''))
+                is_owner = (str(uid) == owner_id)
+                is_admin = uid in ADMIN_USER_IDS
+                
+                if not (is_owner or is_admin):
+                    await status_msg.edit_text("⛔ **Access Denied:** You can only cancel your own queue items.")
+                    return
+
+                await asyncio.to_thread(server.cancel_queue, target_id)
+                await status_msg.edit_text(f"🗑 **Queue Item #{target_id} Cancelled.**", parse_mode="Markdown")
+                return
+        except Exception as e:
+            print(f"Queue check error: {e}")
+
+        # --- SCENARIO 2: CHECK RUNNING BUILD ---
+        try:
+            build_info = await asyncio.to_thread(server.get_build_info, JENKINS_JOB_NAME, target_id)
         except Exception:
-            await status_msg.edit_text(f"❌ Build #{build_id} not found or unreachable.")
+            await status_msg.edit_text(f"❌ ID #{target_id} not found in Queue or Builds.")
             return
 
-        # 2. Extract BUILD_USER_ID parameter
+        # Check Ownership in Build
         build_owner_id = None
         actions = build_info.get('actions', [])
         for action in actions:
@@ -70,7 +95,6 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         build_owner_id = str(param['value'])
                         break
         
-        # 3. Check Permissions (Admin OR Owner)
         is_owner = build_owner_id and str(uid) == build_owner_id
         is_admin = uid in ADMIN_USER_IDS
         
@@ -78,13 +102,13 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await status_msg.edit_text("⛔ **Access Denied:** You can only cancel your own builds.")
             return
 
-        # 4. Execute Cancel
-        await status_msg.edit_text(f"⏳ Stopping Build #{build_id}...")
-        await asyncio.to_thread(server.stop_build, JENKINS_JOB_NAME, build_id)
-        await status_msg.edit_text(f"🛑 **Build #{build_id} Cancelled.**", parse_mode="Markdown")
+        # Execute Cancel Build
+        await status_msg.edit_text(f"⏳ Stopping Build #{target_id}...")
+        await asyncio.to_thread(server.stop_build, JENKINS_JOB_NAME, target_id)
+        await status_msg.edit_text(f"🛑 **Build #{target_id} Cancelled.**", parse_mode="Markdown")
         
     except ValueError:
-        await update.message.reply_text("❌ Invalid Build ID. Please provide a number.")
+        await update.message.reply_text("❌ Invalid ID. Please provide a number.")
     except Exception as e:
         await update.message.reply_text(f"❌ **Failed to cancel:** {e}", parse_mode="Markdown")
 
