@@ -162,6 +162,8 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for item in my_queue:
                 # Extract params from queue item
                 qp = {}
+                q_id = item.get('id', 'Unknown')
+                
                 for action in item.get('actions', []):
                     if 'parameters' in action:
                         qp = {x['name']: x['value'] for x in action['parameters']}
@@ -169,7 +171,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 q_dev = qp.get('DEVICE', 'Unknown')
                 q_user = qp.get('BUILD_USER', '?')
-                msg += f"• 📱 {q_dev} | 👤 {q_user}\n"
+                msg += f"• 📱 {q_dev} | 👤 {q_user} (ID: {q_id})\n"
 
         # --- IDLE SECTION ---
         if not has_activity:
