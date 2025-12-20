@@ -89,6 +89,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text += (
             "**👑 Owner Commands:**\n"
             "`/setrole <ID> <role>` - Promote/Demote users (admin/user).\n"
+            "`/addquota <User> <Amt>` - Add extra quota (Owner Only).\n"
         )
     elif not is_admin:
         help_text += "_Request admin access for more features._"

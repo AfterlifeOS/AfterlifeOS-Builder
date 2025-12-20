@@ -179,3 +179,78 @@ async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await status_msg.edit_text(msg, parse_mode="Markdown")
     else:
         await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
+
+async def add_quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    sender_id = user.id
+    
+    # --- 1. Check Permissions ---
+    # STRICTLY OWNER ONLY
+    db = load_db()
+    sender_data = db.get("users", {}).get(str(sender_id), {})
+    sender_role = sender_data.get("role")
+    
+    if sender_role != ROLE_OWNER:
+        await update.message.reply_text("⛔ **Access Denied:** Owner only command.")
+        return
+
+    # --- 2. Parse Arguments ---
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "⚠️ **Invalid Usage**\n\n"
+            "Format: `/addquota <Username> <Amount>`\n"
+            "Example: `/addquota UserA 2`\n"
+            "(This decreases their used count, giving them more builds)",
+            parse_mode="Markdown"
+        )
+        return
+
+    target_username = args[0]
+    try:
+        amount = int(args[1])
+        if amount <= 0: raise ValueError
+    except ValueError:
+        await update.message.reply_text("⚠️ Amount must be a positive integer.")
+        return
+
+    # --- 3. Find User ID by Username ---
+    target_id = None
+    target_real_name = ""
+    if "users" in db:
+        for uid, udata in db["users"].items():
+            if udata.get("username", "").lower() == target_username.lower():
+                target_id = uid
+                target_real_name = udata.get("username", target_username)
+                break
+    
+    if not target_id:
+        await update.message.reply_text(f"❌ User `{target_username}` not found in database.", parse_mode="Markdown")
+        return
+
+    # --- 4. Update Logic ---
+    current_used = db["users"][target_id].get("daily_count", 0)
+    
+    # "Reduce used count" logic
+    new_used = max(0, current_used - amount)
+    
+    if new_used == current_used and current_used == 0:
+        await update.message.reply_text(f"⚠️ User `{target_real_name}` already has 0 used builds (Full Quota).")
+        return
+
+    db["users"][target_id]["daily_count"] = new_used
+    
+    status_msg = await update.message.reply_text("⏳ Syncing quota change to GitHub...")
+    
+    commit_msg = f"quota: Add {amount} more quota for {target_real_name}"
+    if commit_db_to_github(db, commit_msg):
+        msg = (
+            f"✅ **Quota Added**\n\n"
+            f"👤 **User:** `{target_real_name}`\n"
+            f"📉 **Used:** `{current_used}` ➔ `{new_used}`\n"
+            f"➕ **Added:** `{amount}` builds\n"
+            f"☁️ **Synced:** GitHub"
+        )
+        await status_msg.edit_text(msg, parse_mode="Markdown")
+    else:
+        await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")

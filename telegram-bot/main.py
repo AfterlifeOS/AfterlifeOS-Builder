@@ -27,7 +27,7 @@ from handlers.jenkins import (
     build_command, status_command, quota_command, cancel_command,
     handle_jenkins_callbacks
 )
-from handlers.admin import add_user_command, remove_user_command, set_role_command
+from handlers.admin import add_user_command, remove_user_command, set_role_command, add_quota_command
 from handlers.general import start_command, help_command, list_users_command
 
 def get_jenkins_server():
@@ -76,6 +76,7 @@ async def main():
     app.add_handler(CommandHandler("adduser", add_user_command))
     app.add_handler(CommandHandler("removeuser", remove_user_command))
     app.add_handler(CommandHandler("setrole", set_role_command))
+    app.add_handler(CommandHandler("addquota", add_quota_command))
 
     # --- JENKINS HANDLERS ---
     app.add_handler(CommandHandler("build", build_command))
