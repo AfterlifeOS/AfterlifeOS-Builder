@@ -196,7 +196,7 @@ def main():
     
     # Handle Release JSON
     json_link_md = ""
-    is_release = (args.build_type.lower() == 'user') or (os.environ.get('RELEASE_BUILD') == 'true')
+    is_release = (args.release_status == 'true')
     
     if is_release:
         json_file = os.path.join(out_dir, f"{args.device}.json")
