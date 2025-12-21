@@ -76,6 +76,9 @@ def main():
     workspace = os.environ.get('WORKSPACE', '.')
     out_dir = os.path.join(args.source_dir, 'out', 'target', 'product', args.device)
     
+    # Determine User format based on status (Tag only on Success/Failure)
+    user_display = f"@{args.user}" if args.status in ['success', 'failure'] else f"`{args.user}`"
+
     # Common Info Block
     info_block = (
         f"📱 **Device:** `{args.device}`\n"
@@ -84,7 +87,7 @@ def main():
         f"🧩 **GMS:** `{args.gms}`\n"
         f"🛠 **FSGen:** `{args.fsgen}`\n"
         f"🧹 **Clean:** `{args.install_clean}` | **Full:** `{args.full_clean}`\n"
-        f"👤 **User:** `{args.user}`"
+        f"👤 **User:** {user_display}"
     )
 
     # --- STARTED ---
