@@ -73,7 +73,7 @@ except Exception as e:
 
     # --- 4. REPO SYNC ---
     echo "Starting repo sync..."
-    repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j$(nproc --all) || { echo "Repo sync failed"; exit 1; }
+    repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j8 || { echo "Repo sync failed"; exit 1; }
 
     echo "Syncing Source stage complete."
 
