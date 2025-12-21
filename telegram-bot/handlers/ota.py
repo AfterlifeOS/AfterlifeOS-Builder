@@ -86,9 +86,6 @@ async def post_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id not in ALLOWED_CHAT_IDS:
         await update.message.reply_text("⚠️ This chat is not allowed.")
         return
-    if update.effective_user.id not in ADMIN_USER_IDS:
-        await update.message.reply_text("⛔ Admin Access Only.")
-        return
     
     redis_client = context.bot_data.get("redis")
     if not redis_client:
