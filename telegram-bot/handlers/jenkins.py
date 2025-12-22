@@ -257,11 +257,8 @@ async def generate_status_message(server):
             detail = lb.get('detail', {})
             built_on_detail = detail.get('builtOn', '')
             
-            print(f"[DEBUG] Checking {lb['name']} #{lb['number']} | BuiltOn (API): '{built_on_detail}'")
-
             if built_on_detail and 'builder' in built_on_detail.lower():
                 is_processing = True
-                print(f"[DEBUG] -> Matched by BuiltOn Detail")
 
             # 2. Check Hardware Executors (hw_running) - Source of Truth for Agents
             if not is_processing:
@@ -271,11 +268,9 @@ async def generate_status_message(server):
                     # Match by URL (Most robust)
                     if lb_url and hw.get('url') and lb_url.strip('/') == hw['url'].strip('/'):
                         node_name = hw.get('node', '')
-                        print(f"[DEBUG] -> Found in HW Running by URL: Node='{node_name}'")
                         
                         if node_name and 'builder' in node_name.lower():
                             is_processing = True
-                            print(f"[DEBUG] -> Matched by HW Node")
                             break
             
             if is_processing:
@@ -285,9 +280,9 @@ async def generate_status_message(server):
 
         queue_info = await asyncio.to_thread(server.get_queue_info)
         true_queue = [q for q in queue_info if "AfterlifeOS" in q.get('task', {}).get('name', '')]
-
-        # DEBUG HW
-        print(f"[DEBUG] HW Running Raw: {hw_running}")
+        
+        # SORTING: Sort waiting builds by timestamp (FIFO)
+        waiting_builds.sort(key=lambda x: x.get('detail', {}).get('timestamp', 0))
 
         # --- DISPLAY GENERATION ---
         now_str = datetime.now().strftime("%H:%M UTC")
