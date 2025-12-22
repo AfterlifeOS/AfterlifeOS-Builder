@@ -246,18 +246,46 @@ async def generate_status_message(server):
 
         real_running = []
         waiting_builds = []
+        
         for lb in logical_running:
-            is_executing = False
-            if not lb.get('is_pending'):
+            is_processing = False
+            
+            # 1. Check Build Detail (builtOn)
+            # Sometimes accurate, sometimes 'Built-In Node' for Pipelines
+            detail = lb.get('detail', {})
+            built_on_detail = detail.get('builtOn', '')
+            
+            print(f"[DEBUG] Checking {lb['name']} #{lb['number']} | BuiltOn (API): '{built_on_detail}'")
+
+            if built_on_detail and 'builder' in built_on_detail.lower():
+                is_processing = True
+                print(f"[DEBUG] -> Matched by BuiltOn Detail")
+
+            # 2. Check Hardware Executors (hw_running) - Source of Truth for Agents
+            if not is_processing:
+                lb_url = lb.get('url') or detail.get('url')
+                
                 for hw in hw_running:
-                    if hw['number'] == lb['number'] and hw['name'] in lb['name']:
-                        is_executing = True
-                        break
-            if is_executing: real_running.append(lb)
-            else: waiting_builds.append(lb)
+                    # Match by URL (Most robust)
+                    if lb_url and hw.get('url') and lb_url.strip('/') == hw['url'].strip('/'):
+                        node_name = hw.get('node', '')
+                        print(f"[DEBUG] -> Found in HW Running by URL: Node='{node_name}'")
+                        
+                        if node_name and 'builder' in node_name.lower():
+                            is_processing = True
+                            print(f"[DEBUG] -> Matched by HW Node")
+                            break
+            
+            if is_processing:
+                real_running.append(lb)
+            else:
+                waiting_builds.append(lb)
 
         queue_info = await asyncio.to_thread(server.get_queue_info)
         true_queue = [q for q in queue_info if "AfterlifeOS" in q.get('task', {}).get('name', '')]
+
+        # DEBUG HW
+        print(f"[DEBUG] HW Running Raw: {hw_running}")
 
         # --- DISPLAY GENERATION ---
         now_str = datetime.now().strftime("%H:%M UTC")
