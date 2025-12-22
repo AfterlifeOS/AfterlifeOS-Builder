@@ -212,6 +212,116 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset in: {h}h {m}m")
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
+async def generate_status_message(server):
+    """Generates the modern status text and keyboard."""
+    try:
+        # --- DATA GATHERING ---
+        hw_running = await asyncio.to_thread(server.get_running_builds)
+        
+        logical_running = []
+        async def deep_scan_job(job_name):
+            found = []
+            try:
+                ji = await asyncio.to_thread(server.get_job_info, job_name)
+                if ji.get('inQueue'):
+                    found.append({'name': job_name, 'number': ji.get('nextBuildNumber', 1), 'is_pending': True})
+                builds = ji.get('builds', [])[:10] 
+                for b in builds:
+                    try:
+                        b_detail = await asyncio.to_thread(server.get_build_info, job_name, b['number'])
+                        if b_detail.get('building'):
+                            found.append({'name': job_name, 'number': b['number'], 'url': b_detail['url'], 'detail': b_detail})
+                    except: pass
+            except: pass
+            return found
+
+        try:
+            folder_info = await asyncio.to_thread(server.get_job_info, 'AfterlifeOS')
+            if folder_info and 'jobs' in folder_info:
+                for j in folder_info['jobs']:
+                    logical_running.extend(await deep_scan_job(f"AfterlifeOS/{j['name']}"))
+        except: pass
+        logical_running.extend(await deep_scan_job('AfterlifeOS-Builder'))
+
+        real_running = []
+        waiting_builds = []
+        for lb in logical_running:
+            is_executing = False
+            if not lb.get('is_pending'):
+                for hw in hw_running:
+                    if hw['number'] == lb['number'] and hw['name'] in lb['name']:
+                        is_executing = True
+                        break
+            if is_executing: real_running.append(lb)
+            else: waiting_builds.append(lb)
+
+        queue_info = await asyncio.to_thread(server.get_queue_info)
+        true_queue = [q for q in queue_info if "AfterlifeOS" in q.get('task', {}).get('name', '')]
+
+        # --- DISPLAY GENERATION ---
+        now_str = datetime.now().strftime("%H:%M UTC")
+        msg = f"<b>🔭 System Status</b>\n<pre>Checked at {now_str}</pre>\n\n"
+        
+        has_activity = False
+
+        # 1. RUNNING
+        if real_running:
+            has_activity = True
+            msg += f"<b>🚀 Processing ({len(real_running)})</b>\n"
+            for build in real_running:
+                try:
+                    b_info = build.get('detail')
+                    dur = (datetime.now().timestamp()*1000) - b_info['timestamp']
+                    dmin = int((dur/1000)/60)
+                    
+                    p = {}
+                    for a in b_info.get('actions', []):
+                        if 'parameters' in a: p = {x['name']: x['value'] for x in a['parameters']}
+                    
+                    dev = p.get('DEVICE', build['name'].split('/')[-1])
+                    user = p.get('BUILD_USER', '?')
+                    
+                    msg += (
+                        f"🟢 <b>{dev}</b> <code>#{build['number']}</code>\n"
+                        f"└─ 👤 {user} • ⏱ {dmin}m • <a href='{b_info['url']}console'>Log</a>\n"
+                    )
+                except: pass
+            msg += "\n"
+
+        # 2. WAITING / QUEUE
+        if waiting_builds or true_queue:
+            has_activity = True
+            total_wait = len(waiting_builds) + len(true_queue)
+            msg += f"<b>⏳ Queue ({total_wait})</b>\n"
+            
+            for wb in waiting_builds:
+                state = "Pending Start" if wb.get('is_pending') else "Waiting Node"
+                p = {}
+                if 'detail' in wb:
+                     for a in wb['detail'].get('actions', []):
+                        if 'parameters' in a: p = {x['name']: x['value'] for x in a['parameters']}
+                
+                dev = p.get('DEVICE', wb['name'].split('/')[-1])
+                user = p.get('BUILD_USER', '?')
+                msg += f"🟡 <b>{dev}</b> <code>#{wb['number']}</code>\n└─ 👤 {user} • <i>{state}</i>\n"
+
+            for q in true_queue:
+                qp = {}
+                for a in q.get('actions', []):
+                    if 'parameters' in a: qp = {x['name']: x['value'] for x in a['parameters']}
+                dev = qp.get('DEVICE', q['task']['name'].split('/')[-1])
+                user = qp.get('BUILD_USER', '?')
+                msg += f"🔵 <b>{dev}</b> (Dispatching...)\n└─ 👤 {user}\n"
+        
+        if not has_activity:
+            msg += "✅ <b>System Idle</b>\nAll systems operational. Ready to build."
+
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh Status", callback_data="build_status:refresh")]])
+        return msg, kb
+
+    except Exception as e:
+        return f"❌ Error: {e}", None
+
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not get_user_data(uid):
@@ -223,187 +333,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ **Jenkins disconnected.**", parse_mode="Markdown")
         return
 
-    try:
-        msg = "<b>🔨 Jenkins Status</b>\n\n"
-        has_activity = False
-
-        # --- DATA GATHERING ---
-        
-        # 1. Hardware Running (Builds consuming executor)
-        hw_running = await asyncio.to_thread(server.get_running_builds)
-        
-        # 2. Logical Running (All jobs marked as 'building' in Jenkins)
-        # Scan 'AfterlifeOS' folder + Controller
-        logical_running = []
-        
-        # A. Folder Scan (Deep Scan)
-        async def deep_scan_job(job_name):
-            found = []
-            try:
-                ji = await asyncio.to_thread(server.get_job_info, job_name)
-                # Check InQueue (Pending Start)
-                if ji.get('inQueue'):
-                    next_id = ji.get('nextBuildNumber', 1)
-                    found.append({
-                        'name': job_name,
-                        'number': next_id,
-                        'url': '',
-                        'is_pending': True
-                    })
-
-                # Check Active Builds (Loop last 10 builds)
-                builds = ji.get('builds', [])[:10] 
-                for b in builds:
-                    try:
-                        b_detail = await asyncio.to_thread(server.get_build_info, job_name, b['number'])
-                        if b_detail.get('building'):
-                            found.append({
-                                'name': job_name,
-                                'number': b['number'],
-                                'url': b_detail['url'],
-                                'detail': b_detail
-                            })
-                    except: pass
-            except: pass
-            return found
-
-        try:
-            folder_info = await asyncio.to_thread(server.get_job_info, 'AfterlifeOS')
-            if folder_info and 'jobs' in folder_info:
-                for j in folder_info['jobs']:
-                    full_name = f"AfterlifeOS/{j['name']}"
-                    res = await deep_scan_job(full_name)
-                    logical_running.extend(res)
-        except: pass
-        
-        # B. Controller Scan
-        res_ctrl = await deep_scan_job('AfterlifeOS-Builder')
-        logical_running.extend(res_ctrl)
-
-        # --- CATEGORIZATION ---
-        
-        real_running = [] # Executing on node
-        waiting_builds = [] # Started but waiting for node (Flyweight) or Pending
-
-        def is_executing(l_build, hw_list):
-            if l_build.get('is_pending'): return False
-            for hw in hw_list:
-                if hw['number'] == l_build['number']:
-                    if hw['name'] in l_build['name']:
-                        return True
-            return False
-
-        for lb in logical_running:
-            if is_executing(lb, hw_running):
-                real_running.append(lb)
-            else:
-                waiting_builds.append(lb)
-
-        # 3. Queue (Pending/Placeholder)
-        queue_info = await asyncio.to_thread(server.get_queue_info)
-        true_queue = []
-        for q in queue_info:
-            q_name = q.get('task', {}).get('name', '')
-            if q_name and "AfterlifeOS" in q_name:
-                true_queue.append(q)
-
-        # --- DISPLAY GENERATION ---
-
-        # A. Running (Executing)
-        if real_running:
-             msg += "🚀 <b>Running Builds</b>\n\n"
-             for build in real_running:
-                has_activity = True
-                try:
-                    # Use cached detail if available
-                    b_info = build.get('detail')
-                    if not b_info:
-                        b_info = await asyncio.to_thread(server.get_build_info, build['name'], build['number'])
-                    
-                    dur = (datetime.now().timestamp()*1000) - b_info['timestamp']
-                    dmin = int((dur/1000)/60)
-                    
-                    p = {}
-                    if 'actions' in b_info:
-                        for a in b_info['actions']:
-                            if 'parameters' in a:
-                                p = {x['name']: x['value'] for x in a['parameters']}
-                                break
-                    
-                    dev = p.get('DEVICE', build['name'].replace('AfterlifeOS/', '').replace('AfterlifeOS-', ''))
-                    user = p.get('BUILD_USER', '?')
-                    
-                    msg += (
-                        f"📱 <b>{dev}</b>\n"
-                        f"🆔 ID: <code>{build['number']}</code>\n"
-                        f"👤 {user}\n"
-                        f"⏱ {dmin}m | <a href='{b_info['url']}pipeline-overview'>Pipeline</a>\n\n"
-                    )
-                except:
-                    msg += f"📱 <b>{build['name'].replace('AfterlifeOS/', '')}</b>\n🆔 ID: <code>{build['number']}</code>\n(Info N/A)\n\n"
-
-        # B. Waiting (Started but no executor) + Queue (Not started)
-        if waiting_builds or true_queue:
-            has_activity = True
-            msg += "⏳ <b>Queue / Waiting</b>\n\n"
-            
-            # List Waiting Builds (Have Number)
-            for wb in waiting_builds:
-                if wb.get('is_pending'):
-                     msg += f"🟡 <b>Pending Start</b>\n📱 {wb['name'].replace('AfterlifeOS/', '')}\n🆔 ID: <code>{wb['number']}</code>\n\n"
-                     continue
-
-                try:
-                    b_info = wb.get('detail')
-                    if not b_info:
-                        b_info = await asyncio.to_thread(server.get_build_info, wb['name'], wb['number'])
-                    
-                    p = {}
-                    if 'actions' in b_info:
-                        for a in b_info['actions']:
-                            if 'parameters' in a:
-                                p = {x['name']: x['value'] for x in a['parameters']}
-                                break
-                    
-                    dev = p.get('DEVICE', wb['name'].replace('AfterlifeOS/', '').replace('AfterlifeOS-', ''))
-                    user = p.get('BUILD_USER', '?')
-                    
-                    msg += (
-                        f"🟡 <b>Waiting Executor</b>\n"
-                        f"📱 <b>{dev}</b>\n"
-                        f"🆔 ID: <code>{wb['number']}</code>\n"
-                        f"👤 {user}\n\n"
-                    )
-                except:
-                    msg += f"🟡 <b>Waiting</b>\n📱 {wb['name']}\n🆔 ID: <code>{wb['number']}</code>\n\n"
-
-            # List True Queue (No Number)
-            for q in true_queue:
-                qp = {}
-                for action in q.get('actions', []):
-                    if 'parameters' in action:
-                        qp = {x['name']: x['value'] for x in action['parameters']}
-                        break
-                
-                q_dev = qp.get('DEVICE', q['task']['name'].replace('AfterlifeOS/', '').replace('AfterlifeOS-', ''))
-                q_user = qp.get('BUILD_USER', '?')
-                msg += (
-                    f"🟡 <b>Queue</b>\n"
-                    f"📱 <b>{q_dev}</b>\n"
-                    f"🆔 ID: <code>{q['id']}</code>\n"
-                    f"👤 {q_user}\n\n"
-                )
-
-
-        if not has_activity:
-            msg += "💤 <b>System Idle.</b>\nReady to build."
-        
-        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        await update.message.reply_text(f"❌ Error: {e}")
+    status_msg = await update.message.reply_text("🔍 Scanning farm...")
+    msg, kb = await generate_status_message(server)
+    await status_msg.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
 
 async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -445,6 +377,20 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     data_str = query.data
     
+    # STATUS REFRESH
+    if data_str == "build_status:refresh":
+        server = get_jenkins(context)
+        if server:
+            try:
+                msg, kb = await generate_status_message(server)
+                if msg != query.message.text: # Only edit if changed
+                    await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
+                else:
+                    await query.answer("Already up to date!")
+            except Exception as e:
+                await query.answer(f"Refresh failed: {e}")
+        return
+
     # BUILD ACTION
     if data_str.startswith("build_action:"):
         act = data_str.split(":")[1]
