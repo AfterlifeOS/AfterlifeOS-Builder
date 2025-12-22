@@ -163,7 +163,7 @@ pipeline {
         }
         failure {
             script {
-                if (!fileExists("${env.WORKSPACE}/.quota_exceeded")) {
+                if (fileExists("${env.WORKSPACE}/.quota_exceeded")) {
                     echo "Quota exceeded. Custom notification already sent. Skipping generic failure report."
                 } else {
                     sendReport('failure')
