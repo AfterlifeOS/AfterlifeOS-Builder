@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'AfterlifeOS-Controller' }
     parameters {
         string(name: 'DEVICE', defaultValue: 'walleye', description: 'Device name (e.g., walleye)')
         choice(name: 'RELEASETYPE', choices: ['user', 'userdebug', 'eng'], description: 'Build release type')
