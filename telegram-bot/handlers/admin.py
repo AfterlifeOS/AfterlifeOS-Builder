@@ -1,8 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from datetime import datetime, timezone
-from utils import ADMIN_USER_IDS, load_db, commit_db_to_github, ROLE_ADMIN, ROLE_USER, ROLE_OWNER
+from utils import ADMIN_USER_IDS, load_db, commit_db_to_github, ROLE_ADMIN, ROLE_USER, ROLE_OWNER, restricted_command
 
+@restricted_command
 async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     sender_id = str(user.id)
@@ -62,6 +63,7 @@ async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
 
+@restricted_command
 async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     sender_id = user.id
@@ -130,6 +132,7 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
 
+@restricted_command
 async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     sender_id = user.id
@@ -180,6 +183,7 @@ async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
 
+@restricted_command
 async def add_quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     sender_id = user.id

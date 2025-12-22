@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from utils import ADMIN_USER_IDS, load_db, ROLE_ADMIN, ROLE_USER, ROLE_OWNER
+from utils import ADMIN_USER_IDS, load_db, ROLE_ADMIN, ROLE_USER, ROLE_OWNER, restricted_command
 
+@restricted_command
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = load_db()
     users = db.get("users", {})
@@ -40,6 +41,7 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         await update.message.reply_text(msg, parse_mode="Markdown")
 
+@restricted_command
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 **Welcome to AfterlifeOS Build Bot!**\n\n"
@@ -48,6 +50,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+@restricted_command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = user.id

@@ -6,7 +6,7 @@ from telegram.error import BadRequest
 from datetime import datetime, timezone, timedelta
 from utils import (
     get_quota_status, get_user_data, convert_to_raw_url,
-    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN, ROLE_OWNER, ADMIN_USER_IDS
+    JENKINS_JOB_NAME, MAX_QUOTA_USER, ROLE_ADMIN, ROLE_OWNER, ADMIN_USER_IDS, restricted_command
 )
 
 # === CONSTANTS ===
@@ -35,6 +35,7 @@ def get_jenkins(context):
     return context.bot_data.get("jenkins")
 
 # === HANDLERS ===
+@restricted_command
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Cancels a build (Queue or Running/Waiting).
@@ -197,6 +198,7 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
         await status_msg.edit_text(f"❌ Error: {e}")
 
+@restricted_command
 async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     role, used, remaining = get_quota_status(uid)
@@ -351,6 +353,7 @@ async def generate_status_message(server):
     except Exception as e:
         return f"❌ Error: {e}", None
 
+@restricted_command
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not get_user_data(uid):
@@ -366,6 +369,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg, kb = await generate_status_message(server)
     await status_msg.edit_text(msg, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
 
+@restricted_command
 async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     role, _, rem = get_quota_status(uid)

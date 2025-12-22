@@ -3,7 +3,7 @@ import json
 import asyncio
 import requests
 from datetime import datetime, timezone, timedelta
-from functools import partial
+from functools import partial, wraps
 from dotenv import load_dotenv
 
 # === CONFIGURATION ===
@@ -27,8 +27,6 @@ AFL_SUPPORT = "https://t.me/AfterLifeOS"
 SOURCE_CHANGELOGS_URL = "https://afterlifeos.com/changelog/"
 
 import base64
-
-# ... (Previous Imports)
 
 TEST_GROUP_ID = int(os.environ.get("TEST_GROUP_ID", "0"))
 TEST_CHANNEL_ID = os.environ.get("TEST_CHANNEL_ID")
@@ -62,6 +60,19 @@ MAX_QUOTA_USER = 5
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
 ROLE_OWNER = "owner"
+
+# === DECORATORS ===
+def restricted_command(func):
+    """Decorator to restrict command usage to specific chats."""
+    @wraps(func)
+    async def wrapper(update, context, *args, **kwargs):
+        chat_id = update.effective_chat.id
+        if chat_id not in ALLOWED_CHAT_IDS:
+            # Optional: Log attempt or silently ignore
+            # print(f"[SECURITY] Ignored command from unauthorized chat: {chat_id}")
+            return
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 # === DATABASE UTILS (GITHUB) ===
 def get_github_headers():
@@ -131,7 +142,6 @@ def commit_db_to_github(new_data, commit_message):
         return False
 
 def get_user_data(user_id):
-# ... (rest of the file)
     db = load_db()
     return db["users"].get(str(user_id))
 

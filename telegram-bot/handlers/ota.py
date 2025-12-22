@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 from utils import (
     ALLOWED_CHAT_IDS, ADMIN_USER_IDS, CHANNEL_ID, TEST_GROUP_ID, TEST_CHANNEL_ID,
     STICKER_ID, BOT_TOKEN, SOURCE_CHANGELOGS_URL, AFL_SUPPORT, DONATE_URL,
-    fetch_rom_data, format_date, bytes_to_gb, run_redis_command
+    fetch_rom_data, format_date, bytes_to_gb, run_redis_command, restricted_command
 )
 from telegram import Bot
 
@@ -82,10 +82,9 @@ def format_post(data, posted_by, notes_list=None):
     return post
 
 # === HANDLERS ===
+@restricted_command
 async def post_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.id not in ALLOWED_CHAT_IDS:
-        await update.message.reply_text("⚠️ This chat is not allowed.")
-        return
+    # Check removed as handled by decorator
     
     redis_client = context.bot_data.get("redis")
     if not redis_client:
@@ -201,17 +200,20 @@ async def handle_notes_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await context.bot.delete_message(update.effective_chat.id, st['prompt_id'])
             await context.bot.delete_message(update.effective_chat.id, update.message.message_id)
 
+@restricted_command
 async def set_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_USER_IDS: return
     if update.message.reply_to_message and update.message.reply_to_message.photo:
         await run_redis_command(context.bot_data["redis"], "set", "banner_file_id", update.message.reply_to_message.photo[-1].file_id)
         await update.message.reply_text("✅ Banner set.")
 
+@restricted_command
 async def remove_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_USER_IDS: return
     await run_redis_command(context.bot_data["redis"], "delete", "banner_file_id")
     await update.message.reply_text("✅ Banner removed.")
 
+@restricted_command
 async def view_banner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     b = await run_redis_command(context.bot_data["redis"], "get", "banner_file_id")
     if b: await update.message.reply_photo(b)
