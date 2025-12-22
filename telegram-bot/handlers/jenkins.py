@@ -241,7 +241,7 @@ async def generate_status_message(server):
                 for j in folder_info['jobs']:
                     logical_running.extend(await deep_scan_job(f"AfterlifeOS/{j['name']}"))
         except: pass
-        logical_running.extend(await deep_scan_job('AfterlifeOS-Builder'))
+        # logical_running.extend(await deep_scan_job('AfterlifeOS-Builder')) # HIDDEN: Controller job is internal only
 
         real_running = []
         waiting_builds = []
