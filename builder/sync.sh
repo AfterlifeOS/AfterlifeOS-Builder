@@ -38,13 +38,24 @@ except Exception as e:
 ")
         
         if [ -n "$OLD_PATHS" ]; then
-            echo "Cleaning up trees from previous manifest..."
-            for path in $OLD_PATHS; do
-                if [ -d "$path" ]; then
-                    echo "Removing directory: $path"
-                    rm -rf "$path"
-                fi
-            done
+            # Check for previous device to optimize sync
+            LAST_DEVICE_FILE=".last_build_device.tmp"
+            LAST_DEVICE=""
+            if [ -f "$LAST_DEVICE_FILE" ]; then
+                LAST_DEVICE=$(cat "$LAST_DEVICE_FILE")
+            fi
+
+            if [ "$INSTALLCLEAN" == "No" ] && [ -n "$LAST_DEVICE" ] && [ "$DEVICE" == "$LAST_DEVICE" ]; then
+                echo "Skipping cleanup of old trees: INSTALLCLEAN is 'No' and Device ($DEVICE) matches previous build."
+            else
+                echo "Cleaning up trees from previous manifest..."
+                for path in $OLD_PATHS; do
+                    if [ -d "$path" ]; then
+                        echo "Removing directory: $path"
+                        rm -rf "$path"
+                    fi
+                done
+            fi
         fi
 
         echo "Removing old manifest file: $LOCAL_MANIFEST_PATH"
