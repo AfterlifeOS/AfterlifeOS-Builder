@@ -2,6 +2,7 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from datetime import datetime, timezone, timedelta
 from utils import (
     get_quota_status, get_user_data, convert_to_raw_url,
@@ -283,7 +284,7 @@ async def generate_status_message(server):
                     
                     msg += (
                         f"🟢 <b>{dev}</b> <code>#{build['number']}</code>\n"
-                        f"└─ 👤 {user} • ⏱ {dmin}m • <a href='{b_info['url']}console'>Log</a>\n"
+                        f"└─ 👤 {user} • ⏱ {dmin}m • <a href='{b_info['url']}pipeline-overview'>Log</a>\n"
                     )
                 except: pass
             msg += "\n"
@@ -383,10 +384,13 @@ async def handle_jenkins_callbacks(update: Update, context: ContextTypes.DEFAULT
         if server:
             try:
                 msg, kb = await generate_status_message(server)
-                if msg != query.message.text: # Only edit if changed
-                    await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
+                await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=kb, disable_web_page_preview=True)
+                await query.answer("Refreshed!")
+            except BadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    await query.answer("✅ Status is up to date!")
                 else:
-                    await query.answer("Already up to date!")
+                    await query.answer(f"Error: {e}")
             except Exception as e:
                 await query.answer(f"Refresh failed: {e}")
         return
