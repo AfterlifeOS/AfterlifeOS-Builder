@@ -19,7 +19,7 @@ STICKER_ID = os.environ.get("STICKER_ID")
 JENKINS_URL = os.environ.get("JENKINS_URL")
 JENKINS_USER = os.environ.get("JENKINS_USER")
 JENKINS_TOKEN = os.environ.get("JENKINS_TOKEN")
-JENKINS_JOB_NAME = os.environ.get("JENKINS_JOB_NAME", "Afterlife_Build") 
+JENKINS_JOB_NAME = os.environ.get("JENKINS_JOB_NAME", "AfterlifeOS-Builder") 
 
 BASE_URL = "https://raw.githubusercontent.com/AfterlifeOS/device_afterlife_ota/refs/heads/16"
 DONATE_URL = "https://t.me/donate_zero/6"
