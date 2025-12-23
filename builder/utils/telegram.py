@@ -19,6 +19,8 @@ class TelegramBot:
             
         try:
             response = requests.post(url, data=data)
+            if not response.ok:
+                print(f"[Telegram Error] Response: {response.text}")
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -39,6 +41,8 @@ class TelegramBot:
             with open(file_path, 'rb') as f:
                 files = {'document': f}
                 response = requests.post(url, data=data, files=files)
+                if not response.ok:
+                    print(f"[Telegram Error] Response: {response.text}")
                 response.raise_for_status()
                 return response.json()
         except Exception as e:

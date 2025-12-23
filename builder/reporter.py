@@ -7,6 +7,21 @@ import requests
 import subprocess
 from utils.telegram import TelegramBot
 
+def escape_markdown_v2(text):
+    """Escapes all special characters for MarkdownV2 (outside code blocks)"""
+    if not text:
+        return ""
+    special_chars = r"_*[]()~`>#+-=|{}.!"
+    for char in special_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
+
+def escape_code(text):
+    """Escapes characters for MarkdownV2 inside code blocks"""
+    if not text:
+        return ""
+    return text.replace('\\', '\\\\').replace('`', '\\`')
+
 def upload_to_gofile(file_path):
     print(f"Uploading {file_path} to GoFile...")
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -77,37 +92,40 @@ def main():
     out_dir = os.path.join(args.source_dir, 'out', 'target', 'product', args.device)
     
     # Determine User format based on status (Tag only on Success/Failure)
-    user_display = f"@{args.user}" if args.status in ['success', 'failure'] else f"`{args.user}`"
+    if args.status in ['success', 'failure']:
+        user_display = f"@{escape_markdown_v2(args.user)}"
+    else:
+        user_display = f"`{escape_code(args.user)}`"
 
     # Common Info Block
     info_block = (
-        f"📱 **Device:** `{args.device}`\n"
-        f"🚀 **Type:** `{args.build_type}`\n"
-        f"📢 **Release:** `{args.release_status}`\n"
-        f"🧩 **GMS:** `{args.gms}`\n"
-        f"🛠 **FSGen:** `{args.fsgen}`\n"
-        f"🧹 **Clean:** `{args.install_clean}` | **Full:** `{args.full_clean}`\n"
-        f"👤 **User:** {user_display}"
+        f"📱 *Device:* `{escape_code(args.device)}`\n"
+        f"🚀 *Type:* `{escape_code(args.build_type)}`\n"
+        f"📢 *Release:* `{escape_code(args.release_status)}`\n"
+        f"🧩 *GMS:* `{escape_code(args.gms)}`\n"
+        f"🛠 *FSGen:* `{escape_code(args.fsgen)}`\n"
+        f"🧹 *Clean:* `{escape_code(args.install_clean)}` \| *Full:* `{escape_code(args.full_clean)}`\n"
+        f"👤 *User:* {user_display}"
     )
 
     # --- STARTED ---
     if args.status == 'started':
         msg = (
-            f"🟢 **Build Started**\n\n"
+            f"🟢 *Build Started*\n\n"
             f"{info_block}\n\n"
             f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
         )
-        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder)
+        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
         return
 
     # --- ABORTED ---
     if args.status == 'aborted':
         msg = (
-            f"⛔ **Build Aborted**\n\n"
+            f"⛔ *Build Aborted*\n\n"
             f"{info_block}\n\n"
             f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
         )
-        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder)
+        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
         return
 
     # --- FAILURE ---
@@ -120,7 +138,7 @@ def main():
         error_log_root = os.path.join(args.source_dir, 'out', 'error.log')
         
         log_file_to_upload = None
-        log_caption = f"❌ Error Log - {args.device}"
+        log_caption = f"❌ Error Log \- {escape_markdown_v2(args.device)}"
         
         if os.path.exists(error_log_root):
             print(f"Found error.log at: {error_log_root}")
@@ -137,7 +155,7 @@ def main():
                 with open(temp_log, 'w') as f:
                     f.write(get_file_tail(build_log, 200))
                 log_file_to_upload = temp_log
-                log_caption = f"❌ Build Log - {args.device}"
+                log_caption = f"❌ Build Log \- {escape_markdown_v2(args.device)}"
             
             # 4. Check for sync.log (Sync Failure)
             # Only if build.log doesn't exist (failed before build stage)
@@ -147,10 +165,10 @@ def main():
                  with open(temp_log, 'w') as f:
                      f.write(get_file_tail(sync_log, 200))
                  log_file_to_upload = temp_log
-                 log_caption = f"❌ Sync Log - {args.device}"
+                 log_caption = f"❌ Sync Log \- {escape_markdown_v2(args.device)}"
         
         if log_file_to_upload:
-            resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs)
+            resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs, parse_mode='MarkdownV2')
             if resp and 'result' in resp:
                 msg_id = resp['result']['message_id']
                 log_link = f"[View Log File]({create_telegram_link(args.chat_id, args.topic_error_logs, msg_id)})"
@@ -161,12 +179,12 @@ def main():
 
         # 2. Send Notification to Builder Topic
         msg = (
-            f"❌ **Build Failed**\n\n"
+            f"❌ *Build Failed*\n\n"
             f"{info_block}\n\n"
-            f"📋 **Log:** {log_link}\n"
+            f"📋 *Log:* {log_link}\n"
             f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
         )
-        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder)
+        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
         return
 
     # --- SUCCESS ---
@@ -207,23 +225,24 @@ def main():
             resp = bot.send_document(
                 args.chat_id, 
                 json_file, 
-                caption=f"📄 Release JSON - {args.device}", 
-                topic_id=args.topic_release_json
+                caption=f"📄 Release JSON \- {escape_markdown_v2(args.device)}", 
+                topic_id=args.topic_release_json,
+                parse_mode='MarkdownV2'
             )
             if resp and 'result' in resp:
                 msg_id = resp['result']['message_id']
                 link = create_telegram_link(args.chat_id, args.topic_release_json, msg_id)
-                json_link_md = f"\n📄 **JSON:** [View File]({link})"
+                json_link_md = f"\n📄 *JSON:* [View File]({link})"
 
     # Final Success Message
     msg = (
-        f"✅ **Build Successfully**\n\n"
+        f"✅ *Build Successfully*\n\n"
         f"{info_block}\n"
-        f"📦 **File:** `{rom_name}`\n"
+        f"📦 *File:* `{escape_code(rom_name)}`\n"
         f"🔗 [Download via GoFile]({gofile_link})"
         f"{json_link_md}"
     )
-    bot.send_message(args.chat_id, msg, topic_id=args.topic_builder)
+    bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
 
 if __name__ == "__main__":
     main()
