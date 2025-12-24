@@ -1,16 +1,24 @@
 # AfterlifeOS Build System 🚀
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux-orange.svg)
+![Build Status](https://img.shields.io/github/actions/workflow/status/AfterlifeOS/AfterlifeOS-Builder/build.yml?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white)
 
 An automated **CI/CD pipeline** designed for building **AfterlifeOS** (and other Android ROMs), fully integrated with a **Telegram Bot** for remote management, monitoring, and release distribution.
 
-This project streamlines the development workflow by allowing maintainers to trigger builds, check quotas, and publish OTA updates directly from Telegram.
+## 📋 Table of Contents
+- [✨ Key Features](#-key-features)
+- [🎯 Project Goal](#-project-goal)
+- [📂 Project Structure](#-project-structure)
+- [🛠️ Installation & Setup](#%EF%B8%8F-installation--setup)
+- [🤖 Usage](#-usage)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
 
 ---
 
-## ✨ Main Features
+## ✨ Key Features
 
 *   **🤖 Telegram Bot Integration:** Control your build infrastructure from anywhere using simple commands.
 *   **🏗 Remote Build Triggering:** Launch GitHub Actions workflows to build ROMs for specific devices (`/build`).
@@ -22,25 +30,48 @@ This project streamlines the development workflow by allowing maintainers to tri
 
 ---
 
+## 🎯 Project Goal
+
+The primary goal of this project is to democratize and streamline the Android ROM compilation process. By bridging the gap between complex CI/CD infrastructure (GitHub Actions) and a user-friendly interface (Telegram), we aim to:
+
+1.  **Reduce Friction:** Eliminate the need for constant terminal monitoring and manual server management.
+2.  **Enhance Accessibility:** Allow developers to trigger and monitor builds from mobile devices.
+3.  **Ensure Stability:** Enforce resource quotas and automated cleanups to maintain a healthy build environment.
+
+---
+
 ## 📂 Project Structure
 
 ```text
 /
-├── .github/workflows/   # GitHub Actions CI configurations
-├── builder/             # Core build scripts & logic
-│   ├── build.sh         # Main Android build script (lunch & make)
-│   ├── quota_manager.py # Manages user quotas & database updates
-│   └── ...
-├── telegram-bot/        # Telegram Bot source code
-│   ├── handlers/        # Command handlers (Admin, GitHub, OTA)
-│   ├── main.py          # Bot entry point
-│   └── requirements.txt # Python dependencies
-└── database.json        # User database (roles, quotas, history)
+├── .github/
+│   └── workflows/
+│       └── build.yml          # GitHub Actions CI workflow definition
+├── builder/                   # Core build scripts & logic
+│   ├── utils/
+│   │   └── telegram.py        # Telegram notification utility for builder
+│   ├── build.sh               # Main Android build script (lunch & make)
+│   ├── fsgen_control.sh       # Controls filesystem generation options
+│   ├── gms_variant_control.sh # Manages GMS variants (Core, Basic, etc.)
+│   ├── quota_manager.py       # Manages user quotas & database updates
+│   ├── reporter.py            # Reports build status/results
+│   └── sync.sh                # Repo sync script
+├── telegram-bot/              # Telegram Bot source code
+│   ├── handlers/              # Command handlers
+│   │   ├── admin.py           # Admin commands (adduser, setbanner, etc.)
+│   │   ├── general.py         # General commands (start, help, listuser)
+│   │   ├── github.py          # GitHub interaction (build, status, cancel)
+│   │   └── ota.py             # OTA Release management (post, banner)
+│   ├── main.py                # Bot entry point and startup logic
+│   ├── requirements.txt       # Python dependencies for the bot
+│   └── utils.py               # Shared utility functions (formatting, redis)
+├── database.json              # User database (roles, quotas, history)
+└── README.md                  # Project documentation
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🛠️ Installation & Setup
 
 ### Prerequisites
 
@@ -78,7 +109,7 @@ This project streamlines the development workflow by allowing maintainers to tri
 
 ---
 
-## 🎮 Usage
+## 🤖 Usage
 
 ### 👤 User Commands
 | Command | Description |
@@ -114,7 +145,7 @@ This project streamlines the development workflow by allowing maintainers to tri
 
 ---
 
-## 🤝 Contribution
+## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
 
@@ -153,3 +184,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+<br>
+<p align="center">
+  Built with ❤️ by the <a href="https://github.com/AfterlifeOS">AfterlifeOS Team</a>
+</p>
