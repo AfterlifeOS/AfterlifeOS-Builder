@@ -69,6 +69,7 @@ This project streamlines the development workflow by allowing maintainers to tri
     *   `GITHUB_TOKEN`: Personal Access Token (PAT) with repo scope.
     *   `GITHUB_REPO_NAME`: `username/repo`.
     *   `TELEGRAM_CHAT_ID`: Admin/Log chat ID.
+    *   `OWNER_ID`: Telegram ID of the bot owner.
 
 4.  **Run the Bot**
     ```bash
@@ -79,25 +80,37 @@ This project streamlines the development workflow by allowing maintainers to tri
 
 ## 🎮 Usage
 
-### User Commands
+### 👤 User Commands
 | Command | Description |
 | :--- | :--- |
 | `/start` | Check if the bot is online. |
-| `/help` | Show available commands. |
-| `/build <device> <type>` | Trigger a new build (e.g., `/build citrus userdebug`). |
+| `/help` | Show available commands based on your role. |
+| `/build <device>` | Trigger a new build (e.g., `/build citrus`). |
 | `/status` | Check the status of running builds. |
 | `/quota` | View your remaining daily build quota. |
-| `/cancel` | Cancel your currently running build. |
+| `/cancel <RunID>` | Cancel your own running build. |
+| `/post <device>` | Create a release post for a device (needs banner set). |
+| `/banner` | View the current OTA release banner. |
+| `/listuser` | List all registered users and their roles. |
 
-### Admin Commands
+### 🛡️ Admin Commands
+*Accessible to Admins and Owner.*
+
 | Command | Description |
 | :--- | :--- |
-| `/adduser <id>` | Whitelist a new user. |
-| `/removeuser <id>` | Remove a user. |
-| `/setrole <id> <role>` | Set role (`user`, `admin`). |
-| `/addquota <id>` | Manually increase a user's quota. |
-| `/post <device>` | Create a release post for a device. |
-| `/setbanner` | Set the OTA release banner (reply to an image). |
+| `/adduser <id> <name> [role]` | Whitelist a new user or update existing one. |
+| `/removeuser <id>` | Remove a user from the database. |
+| `/setbanner` | Set the OTA release banner (Reply to an image). |
+| `/removebanner` | Remove the current OTA banner. |
+| **Note** | Admins have unlimited build quota and can cancel *any* build. |
+
+### 👑 Owner Commands
+*Exclusive to the Bot Owner.*
+
+| Command | Description |
+| :--- | :--- |
+| `/setrole <id> <role>` | Promote/Demote users (Roles: `user`, `admin`). |
+| `/addquota <user> <amt>` | Manually add extra quota to a user for the day. |
 
 ---
 
