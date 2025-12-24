@@ -148,6 +148,8 @@ async def generate_status_message(repo):
         # Get active runs
         runs = await asyncio.to_thread(repo.get_workflow_runs, status="in_progress")
         queued = await asyncio.to_thread(repo.get_workflow_runs, status="queued")
+        waiting = await asyncio.to_thread(repo.get_workflow_runs, status="waiting")
+        pending = await asyncio.to_thread(repo.get_workflow_runs, status="pending")
         
         msg = f"<b>🔭 System Status</b>\n<pre>GitHub Actions</pre>\n\n"
         has_activity = False
@@ -201,11 +203,13 @@ async def generate_status_message(repo):
                 f"└ <a href='{run.html_url}'>🗒️ View Logs</a>\n\n"
             )
         
-        # Queued
-        for run in queued:
+        # Queued / Waiting / Pending
+        from itertools import chain
+        for run in chain(queued, waiting, pending):
             has_activity = True
             username, userid = parse_run_info(run)
             
+            # Uniform display for all queue types
             msg += (
                 f"🔵 <b>Status : Queued</b>\n"
                 f"├ By : <code>{username}</code>\n"
