@@ -13,12 +13,36 @@ FULLCLEAN="$4"
 
 # Define Log File
 LOG_FILE="${WORKSPACE}/build.log"
+PROGRESS_FILE="${WORKSPACE}/progress.txt"
 
 # Redirect all stdout and stderr to the log file (and console)
-# This ensures 'lunch' errors and everything else is captured
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "Starting Building stage..."
+
+# --- PROGRESS PARSER (Background) ---
+# Parses Ninja/Kati/Soong output: [ 10% 100/1000] Description...
+rm -f "$PROGRESS_FILE"
+(
+    tail -n0 -F "$LOG_FILE" 2>/dev/null | \
+    grep --line-buffered -P '^\[\s*[0-9]+% [0-9]+/[0-9]+' | \
+    awk -v logfile="$PROGRESS_FILE" '{
+        # Remove ANSI colors
+        gsub(/\x1b\[[0-9;]*m/, "");
+        
+        # Regex to capture: [ PCT% COUNTS ] DESC
+        # Match: [ 1% 10/1000] Compiling...
+        # Group 1: PCT, Group 2: COUNTS, Group 3: ETA/EXTRA, Group 4: DESC
+        match($0, /^\[\s*([0-9]+)% ([0-9]+\/[0-9]+)([^]]*)\] (.*)/, arr);
+        
+        if (arr[1] != "" && arr[2] != "") {
+             # Format: PERCENT,COUNTS,DESC
+             print arr[1] "," arr[2] "," arr[4] > logfile;
+             fflush(logfile);
+        }
+    }'
+) &
+PARSER_PID=$!
 
 # --- SMART CLEANUP LOGIC ---
 LAST_DEVICE_FILE=".last_build_device.tmp"
@@ -70,6 +94,12 @@ fi
 
 # Start building
 echo "Starting make process with all available cores..."
-m afterlife -j$(nproc --all) || { echo "Build failed"; exit 1; }
+m afterlife -j$(nproc --all) || { 
+    kill $PARSER_PID 2>/dev/null
+    echo "Build failed"; exit 1; 
+}
+
+# Kill parser
+kill $PARSER_PID 2>/dev/null
 
 echo "Building stage complete."

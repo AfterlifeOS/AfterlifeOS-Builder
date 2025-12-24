@@ -1,0 +1,316 @@
+name: AfterlifeOS Builder
+run-name: '${{ inputs.DEVICE }} (${{ inputs.RELEASETYPE }}) | User: ${{ inputs.BUILD_USER }} (${{ inputs.BUILD_USER_ID }})'
+
+on:
+  workflow_dispatch:
+    inputs:
+      DEVICE:
+        description: 'Device Codename (e.g., walleye)'
+        required: true
+        default: 'walleye'
+      RELEASETYPE:
+        description: 'Build Release Type'
+        required: true
+        default: 'userdebug'
+        type: choice
+        options:
+          - user
+          - userdebug
+          - eng
+      INSTALLCLEAN:
+        description: 'Run make installclean?'
+        required: true
+        default: 'Yes'
+        type: choice
+        options:
+          - 'Yes'
+          - 'No'
+      FULLCLEAN:
+        description: 'Run make clean (Wipe out)?'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'No'
+          - 'Yes'
+      FSGEN:
+        description: 'FSGen Status'
+        required: true
+        default: 'Enable'
+        type: choice
+        options:
+          - 'Enable'
+          - 'Disable'
+      GMS_VARIANT:
+        description: 'GMS Variant'
+        required: true
+        default: 'Tree default'
+        type: choice
+        options:
+          - 'Tree default'
+          - 'Full'
+          - 'Core'
+          - 'Basic'
+          - 'Vanilla'
+      RELEASE_BUILD:
+        description: 'Is this a Release Build?'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'No'
+          - 'Yes'
+      LOCAL_MANIFEST_URL:
+        description: 'URL to local_manifest.xml'
+        required: false
+        default: ''
+      BUILD_USER:
+        description: 'Triggered By (Username)'
+        required: true
+        default: 'GitHub-Action'
+      BUILD_USER_ID:
+        description: 'Triggered By (ID)'
+        required: true
+        default: '0'
+
+# Ensure only one build runs at a time, queuing others
+concurrency:
+  group: build-queue
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: self-hosted
+    # Set timeout to avoid stuck builds (e.g. 6 hours)
+    timeout-minutes: 360
+    
+    env:
+      # Configurations
+      # AOSP_SOURCE_DIR and WORKSPACE are set in the "Setup Environment" step
+      
+      # Mapping Inputs to Env for scripts
+      DEVICE: ${{ inputs.DEVICE }}
+      RELEASETYPE: ${{ inputs.RELEASETYPE }}
+      INSTALLCLEAN: ${{ inputs.INSTALLCLEAN }}
+      FULLCLEAN: ${{ inputs.FULLCLEAN }}
+      FSGEN: ${{ inputs.FSGEN }}
+      GMS_VARIANT: ${{ inputs.GMS_VARIANT }}
+      RELEASE_BUILD: ${{ inputs.RELEASE_BUILD }}
+      LOCAL_MANIFEST: ${{ inputs.LOCAL_MANIFEST_URL }}
+      BUILD_USER: ${{ inputs.BUILD_USER }}
+      BUILD_USER_ID: ${{ inputs.BUILD_USER_ID }}
+      
+      # Secrets (Assumes these are set in Repo Settings > Secrets)
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TOPIC_BUILDER: ${{ secrets.TOPIC_BUILDER }}
+      TOPIC_ERROR_LOGS: ${{ secrets.TOPIC_ERROR_LOGS }}
+      TOPIC_RELEASE_JSON: ${{ secrets.TOPIC_RELEASE_JSON }}
+      
+      # Constant
+      AOSP_MANIFEST_URL: 'https://github.com/AfterlifeOS/afterlife_manifest.git'
+      AOSP_MANIFEST_BRANCH: '16'
+      
+      # Auth for Scripts (Using Custom PAT for Private Repos & Push Access)
+      GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+      GITHUB_REPO_NAME: ${{ github.repository }}
+
+    steps:
+      - name: Checkout Repo (Scripts)
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        run: |
+          echo "AOSP_SOURCE_DIR=$HOME/android/source" >> $GITHUB_ENV
+          echo "WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          
+      - name: Prepare Scripts
+        run: |
+          chmod +x builder/*.sh
+          chmod +x builder/*.py
+          
+          # Clean previous logs in workspace and source dir
+          rm -f build.log sync.log .quota_exceeded
+          rm -f $AOSP_SOURCE_DIR/out/error.log
+          
+          # Ensure Source Dir exists
+          mkdir -p $AOSP_SOURCE_DIR
+
+      - name: Notify Start
+        run: |
+          # Send start notification
+          python3 builder/reporter.py \
+            --status started \
+            --device "$DEVICE" \
+            --build-type "$RELEASETYPE" \
+            --release-status "$RELEASE_BUILD" \
+            --gms "$GMS_VARIANT" \
+            --fsgen "$FSGEN" \
+            --install-clean "$INSTALLCLEAN" \
+            --full-clean "$FULLCLEAN" \
+            --user "$BUILD_USER" \
+            --chat-id "$TELEGRAM_CHAT_ID" \
+            --topic-builder "$TOPIC_BUILDER" \
+            --topic-error-logs "$TOPIC_ERROR_LOGS" \
+            --topic-release-json "$TOPIC_RELEASE_JSON" \
+            --token "$TELEGRAM_TOKEN" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --source-dir "$AOSP_SOURCE_DIR"
+
+      - name: Check Quota
+        run: |
+          if [ "$BUILD_USER_ID" != "0" ] && [ "$BUILD_USER_ID" != "" ]; then
+            echo "Checking Quota..."
+            # Run manager
+            python3 builder/quota_manager.py "$BUILD_USER_ID" "$BUILD_USER" "$FULLCLEAN"
+          fi
+
+      - name: Sync Source
+        run: |
+          # Notify Syncing
+          python3 builder/reporter.py \
+            --status syncing \
+            --device "$DEVICE" \
+            --build-type "$RELEASETYPE" \
+            --release-status "$RELEASE_BUILD" \
+            --gms "$GMS_VARIANT" \
+            --fsgen "$FSGEN" \
+            --install-clean "$INSTALLCLEAN" \
+            --full-clean "$FULLCLEAN" \
+            --user "$BUILD_USER" \
+            --chat-id "$TELEGRAM_CHAT_ID" \
+            --topic-builder "$TOPIC_BUILDER" \
+            --topic-error-logs "$TOPIC_ERROR_LOGS" \
+            --topic-release-json "$TOPIC_RELEASE_JSON" \
+            --token "$TELEGRAM_TOKEN" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --source-dir "$AOSP_SOURCE_DIR"
+
+          git config --global user.name "HinohArata"
+          git config --global user.email "161218134+HinohArata@users.noreply.github.com"
+          cd $AOSP_SOURCE_DIR
+          ${{ github.workspace }}/builder/sync.sh "$LOCAL_MANIFEST"
+
+      - name: Set GMS Variant
+        if: inputs.GMS_VARIANT != 'Tree default'
+        run: |
+          cd $AOSP_SOURCE_DIR
+          ${{ github.workspace }}/builder/gms_variant_control.sh apply "$DEVICE" "$GMS_VARIANT"
+
+      - name: Modify FSGen
+        if: inputs.FSGEN == 'Disable'
+        run: |
+          cd $AOSP_SOURCE_DIR
+          ${{ github.workspace }}/builder/fsgen_control.sh modify
+
+      - name: Build ROM
+        id: build_rom
+        run: |
+          # Start Monitoring in Background
+          python3 builder/reporter.py \
+            --status monitoring \
+            --device "$DEVICE" \
+            --build-type "$RELEASETYPE" \
+            --release-status "$RELEASE_BUILD" \
+            --gms "$GMS_VARIANT" \
+            --fsgen "$FSGEN" \
+            --install-clean "$INSTALLCLEAN" \
+            --full-clean "$FULLCLEAN" \
+            --user "$BUILD_USER" \
+            --chat-id "$TELEGRAM_CHAT_ID" \
+            --topic-builder "$TOPIC_BUILDER" \
+            --topic-error-logs "$TOPIC_ERROR_LOGS" \
+            --topic-release-json "$TOPIC_RELEASE_JSON" \
+            --token "$TELEGRAM_TOKEN" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --source-dir "$AOSP_SOURCE_DIR" &
+          MONITOR_PID=$!
+            
+          cd $AOSP_SOURCE_DIR
+          ${{ github.workspace }}/builder/build.sh \
+            "$DEVICE" \
+            "$RELEASETYPE" \
+            "$INSTALLCLEAN" \
+            "$FULLCLEAN"
+          
+          # Kill Monitor after build finishes
+          kill $MONITOR_PID || true
+
+      - name: Restore Changes (Post-Build)
+        if: always()
+        run: |
+          # Restore FSGen
+          if [ "$FSGEN" == "Disable" ]; then
+             cd $AOSP_SOURCE_DIR && ${{ github.workspace }}/builder/fsgen_control.sh restore
+          fi
+          # Restore GMS
+          if [ "$GMS_VARIANT" != "Tree default" ]; then
+             cd $AOSP_SOURCE_DIR && ${{ github.workspace }}/builder/gms_variant_control.sh restore "$DEVICE" "ignored"
+          fi
+
+      - name: Notify Success
+        if: success()
+        run: |
+          python3 builder/reporter.py \
+            --status success \
+            --device "$DEVICE" \
+            --build-type "$RELEASETYPE" \
+            --release-status "$RELEASE_BUILD" \
+            --gms "$GMS_VARIANT" \
+            --fsgen "$FSGEN" \
+            --install-clean "$INSTALLCLEAN" \
+            --full-clean "$FULLCLEAN" \
+            --user "$BUILD_USER" \
+            --chat-id "$TELEGRAM_CHAT_ID" \
+            --topic-builder "$TOPIC_BUILDER" \
+            --topic-error-logs "$TOPIC_ERROR_LOGS" \
+            --topic-release-json "$TOPIC_RELEASE_JSON" \
+            --token "$TELEGRAM_TOKEN" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --source-dir "$AOSP_SOURCE_DIR"
+
+      - name: Notify Failure
+        if: failure()
+        run: |
+          if [ -f ".quota_exceeded" ]; then
+            echo "Quota exceeded. Skipping generic report."
+          else
+            python3 builder/reporter.py \
+              --status failure \
+              --device "$DEVICE" \
+              --build-type "$RELEASETYPE" \
+              --release-status "$RELEASE_BUILD" \
+              --gms "$GMS_VARIANT" \
+              --fsgen "$FSGEN" \
+              --install-clean "$INSTALLCLEAN" \
+              --full-clean "$FULLCLEAN" \
+              --user "$BUILD_USER" \
+              --chat-id "$TELEGRAM_CHAT_ID" \
+              --topic-builder "$TOPIC_BUILDER" \
+              --topic-error-logs "$TOPIC_ERROR_LOGS" \
+              --topic-release-json "$TOPIC_RELEASE_JSON" \
+              --token "$TELEGRAM_TOKEN" \
+              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --source-dir "$AOSP_SOURCE_DIR"
+          fi
+
+      - name: Notify Cancelled
+        if: cancelled()
+        run: |
+            python3 builder/reporter.py \
+              --status aborted \
+              --device "$DEVICE" \
+              --build-type "$RELEASETYPE" \
+              --release-status "$RELEASE_BUILD" \
+              --gms "$GMS_VARIANT" \
+              --fsgen "$FSGEN" \
+              --install-clean "$INSTALLCLEAN" \
+              --full-clean "$FULLCLEAN" \
+              --user "$BUILD_USER" \
+              --chat-id "$TELEGRAM_CHAT_ID" \
+              --topic-builder "$TOPIC_BUILDER" \
+              --topic-error-logs "$TOPIC_ERROR_LOGS" \
+              --topic-release-json "$TOPIC_RELEASE_JSON" \
+              --token "$TELEGRAM_TOKEN" \
+              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --source-dir "$AOSP_SOURCE_DIR"

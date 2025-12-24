@@ -10,34 +10,40 @@ if os.path.isdir(custom_lib_path):
         print(f"[INIT] Loading custom libraries from: {custom_lib_path}")
 
 # === IMPORTS ===
+from github import Github, Auth
 import redis
-import jenkins
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from dotenv import load_dotenv
 
 # Import Utils
-from utils import BOT_TOKEN, REDIS_URL, JENKINS_URL, JENKINS_USER, JENKINS_TOKEN
+from utils import BOT_TOKEN, REDIS_URL
 
 # Import Handlers
 from handlers.ota import (
     post_command, set_banner, remove_banner, view_banner, 
     handle_notes_reply, handle_ota_callbacks
 )
-from handlers.jenkins import (
+# CHANGED: Import from github handler
+from handlers.github import (
     build_command, status_command, quota_command, cancel_command,
-    handle_jenkins_callbacks
+    handle_github_callbacks
 )
 from handlers.admin import add_user_command, remove_user_command, set_role_command, add_quota_command
 from handlers.general import start_command, help_command, list_users_command
 
-def get_jenkins_server():
-    if not JENKINS_URL: return None
+def get_github_client():
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        print("[ERROR] GITHUB_TOKEN not found in environment.")
+        return None
     try:
-        s = jenkins.Jenkins(JENKINS_URL, username=JENKINS_USER, password=JENKINS_TOKEN)
-        print(f"[INIT] Jenkins Connected: {s.get_whoami()['fullName']}")
-        return s
+        auth = Auth.Token(token)
+        g = Github(auth=auth)
+        # Test connection
+        print(f"[INIT] GitHub Connected: {g.get_user().login}")
+        return g
     except Exception as e:
-        print(f"[ERROR] Jenkins: {e}")
+        print(f"[ERROR] GitHub Connection Failed: {e}")
         return None
 
 async def main():
@@ -56,14 +62,14 @@ async def main():
         print(f"[ERROR] Redis: {e}")
         return
 
-    jenkins_server = get_jenkins_server()
+    gh_client = get_github_client()
 
     # 2. Build App
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
     # Inject dependencies into bot_data
     app.bot_data["redis"] = redis_client
-    app.bot_data["jenkins"] = jenkins_server
+    app.bot_data["github_client"] = gh_client
 
     # 3. Register Handlers
     
@@ -78,14 +84,14 @@ async def main():
     app.add_handler(CommandHandler("setrole", set_role_command))
     app.add_handler(CommandHandler("addquota", add_quota_command))
 
-    # --- JENKINS HANDLERS ---
+    # --- GITHUB ACTIONS HANDLERS ---
     app.add_handler(CommandHandler("build", build_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("quota", quota_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
     
-    # Regex pattern for Jenkins Callbacks (starts with build_)
-    app.add_handler(CallbackQueryHandler(handle_jenkins_callbacks, pattern=r"^(build_).*"))
+    # Regex pattern for GitHub Callbacks (starts with build_)
+    app.add_handler(CallbackQueryHandler(handle_github_callbacks, pattern=r"^(build_).*"))
 
     # --- OTA HANDLERS ---
     app.add_handler(CommandHandler("post", post_command))

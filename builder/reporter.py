@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 import os
 import sys
+
+# === CUSTOM LIBRARY LOADER ===
+custom_lib_path = os.path.expanduser("~/pylib")
+if os.path.isdir(custom_lib_path):
+    if custom_lib_path not in sys.path:
+        sys.path.insert(0, custom_lib_path)
+        print(f"[INIT] Loading custom libraries from: {custom_lib_path}")
+
 import argparse
 import glob
 import requests
 import subprocess
+import time
+import re
 from utils.telegram import TelegramBot
 
 def escape_markdown_v2(text):
@@ -69,7 +79,7 @@ def create_telegram_link(chat_id, topic_id, message_id):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--status', required=True, choices=['started', 'success', 'failure', 'aborted'])
+    parser.add_argument('--status', required=True, choices=['started', 'syncing', 'building', 'monitoring', 'success', 'failure', 'aborted'])
     parser.add_argument('--device', required=True)
     parser.add_argument('--build-type', required=True)
     parser.add_argument('--gms', required=True)
@@ -88,14 +98,12 @@ def main():
     
     args = parser.parse_args()
     bot = TelegramBot(args.token)
-    workspace = os.environ.get('WORKSPACE', '.')
+    workspace = os.environ.get('WORKSPACE') or os.environ.get('GITHUB_WORKSPACE') or '.'
     out_dir = os.path.join(args.source_dir, 'out', 'target', 'product', args.device)
-    
-    # Determine User format based on status (Tag only on Success/Failure)
-    if args.status in ['success', 'failure']:
-        user_display = f"@{escape_markdown_v2(args.user)}"
-    else:
-        user_display = f"`{escape_code(args.user)}`"
+    msg_id_file = os.path.join(workspace, ".build_msg_id")
+
+    # Always use Tag for User to notify maintainer
+    user_display = f"@{escape_markdown_v2(args.user)}"
 
     # Common Info Block
     info_block = (
@@ -104,26 +112,136 @@ def main():
         f"📢 *Release:* `{escape_code(args.release_status)}`\n"
         f"🧩 *GMS:* `{escape_code(args.gms)}`\n"
         f"🛠 *FSGen:* `{escape_code(args.fsgen)}`\n"
-        f"🧹 *Clean:* `{escape_code(args.install_clean)}` \| *Full:* `{escape_code(args.full_clean)}`\n"
+        f"🧹 *Clean:* `{escape_code(args.install_clean)}` \\| *Full:* `{escape_code(args.full_clean)}`\n"
         f"👤 *User:* {user_display}"
     )
+
+    # --- LOGIC HANDLER ---
+    
+    # 0. MONITORING (Looping Progress Bar)
+    if args.status == 'monitoring':
+        progress_file = os.path.join(workspace, "progress.txt")
+        if not os.path.exists(msg_id_file):
+            print("[MONITOR] No message ID found. Exiting.")
+            return
+
+        with open(msg_id_file, 'r') as f:
+            msg_id = f.read().strip()
+        
+        if not msg_id: return
+
+        print("[MONITOR] Starting progress loop...")
+        last_text = ""
+        
+        while True:
+            # Default text
+            progress_display = "`Preparing Build System\\.\\.\\.`"
+            
+            if os.path.exists(progress_file):
+                try:
+                    with open(progress_file, 'r') as f:
+                        lines = f.readlines()
+                        if lines:
+                            line = lines[-1].strip()
+                            parts = line.split(',')
+                            if len(parts) >= 3:
+                                pct = int(parts[0])
+                                counts = parts[1]
+                                desc = parts[2].lower()
+                                
+                                # Check for Bootstrap/Setup Phase
+                                if re.search(r"bootstrap|analyzing|initializing|including|finishing|writing packaging|writing legacy", desc):
+                                    # Text Mode (No Bar)
+                                    clean_desc = desc.strip()[:30]
+                                    progress_display = f"Progress: `{escape_code(clean_desc)}\\.\\.\\. ({pct}%)`"
+                                else:
+                                    # Ninja Build Mode (With Bar)
+                                    filled = int(pct / 10)
+                                    empty = 10 - filled
+                                    bar = "█" * filled + "░" * empty
+                                    progress_display = f"Progress: `[{bar}] {pct}%`\n`({counts})`"
+                except: pass
+            
+            # Construct Message: Header -> Info -> Progress -> Link
+            header = "🔨 *Building ROM\\.\\.\\.*"
+            new_text = (
+                f"{header}\n\n"
+                f"{info_block}\n\n"
+                f"{progress_display}\n\n"
+                f"📊 [View Run]({args.build_url})"
+            )
+            
+            # Update only if text changed
+            if new_text != last_text:
+                try:
+                    bot.edit_message(args.chat_id, msg_id, new_text, parse_mode='MarkdownV2')
+                    last_text = new_text
+                except Exception as e:
+                    print(f"[MONITOR] Edit failed: {e}")
+            
+            time.sleep(8)
+        return
+
+    # 1. PROGRESS UPDATE (Syncing / Building) -> EDIT MESSAGE
+    if args.status in ['syncing', 'building']:
+        if os.path.exists(msg_id_file):
+            try:
+                with open(msg_id_file, 'r') as f:
+                    old_mid = f.read().strip()
+                
+                if old_mid:
+                    # Escape dots for MarkdownV2: ... -> \\.\\.\\.
+                    status_text = "🔄 *Syncing Source\\.\\.\\.*" if args.status == 'syncing' else "🔨 *Building ROM\\.\\.\\.*"
+                    msg = (
+                        f"{status_text}\n\n"
+                        f"{info_block}\n\n"
+                        f"📊 [View Run]({args.build_url})"
+                    )
+                    bot.edit_message(args.chat_id, old_mid, msg, parse_mode='MarkdownV2')
+            except Exception as e:
+                print(f"[ERROR] Editing message failed: {e}")
+        return
+
+    # 2. FINAL STATUS (Success / Failure / Aborted) -> DELETE OLD & SEND NEW
+    if args.status in ['success', 'failure', 'aborted']:
+        if os.path.exists(msg_id_file):
+            try:
+                with open(msg_id_file, 'r') as f:
+                    old_mid = f.read().strip()
+                if old_mid:
+                    print(f"Deleting previous progress message: {old_mid}")
+                    bot.delete_message(args.chat_id, old_mid)
+                os.remove(msg_id_file)
+            except Exception as e:
+                print(f"Error deleting previous message: {e}")
 
     # --- STARTED ---
     if args.status == 'started':
         msg = (
             f"🟢 *Build Started*\n\n"
             f"{info_block}\n\n"
-            f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
+            f"📊 [View Run]({args.build_url})"
         )
-        bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
+        resp = bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
+        
+        # Save Message ID
+        if resp and 'result' in resp:
+            try:
+                with open(msg_id_file, 'w') as f:
+                    f.write(str(resp['result']['message_id']))
+            except Exception as e:
+                print(f"Error saving message ID: {e}")
         return
+
+    # --- ABORTED ---
+
 
     # --- ABORTED ---
     if args.status == 'aborted':
         msg = (
             f"⛔ *Build Aborted*\n\n"
             f"{info_block}\n\n"
-            f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
+            f"📊 [View Run]({args.build_url})"
         )
         bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
         return
@@ -138,7 +256,7 @@ def main():
         error_log_root = os.path.join(args.source_dir, 'out', 'error.log')
         
         log_file_to_upload = None
-        log_caption = f"❌ Error Log \- {escape_markdown_v2(args.device)}"
+        log_caption = f"❌ Error Log \\- {escape_markdown_v2(args.device)}"
         
         if os.path.exists(error_log_root):
             print(f"Found error.log at: {error_log_root}")
@@ -155,7 +273,7 @@ def main():
                 with open(temp_log, 'w') as f:
                     f.write(get_file_tail(build_log, 200))
                 log_file_to_upload = temp_log
-                log_caption = f"❌ Build Log \- {escape_markdown_v2(args.device)}"
+                log_caption = f"❌ Build Log \\- {escape_markdown_v2(args.device)}"
             
             # 4. Check for sync.log (Sync Failure)
             # Only if build.log doesn't exist (failed before build stage)
@@ -165,7 +283,7 @@ def main():
                  with open(temp_log, 'w') as f:
                      f.write(get_file_tail(sync_log, 200))
                  log_file_to_upload = temp_log
-                 log_caption = f"❌ Sync Log \- {escape_markdown_v2(args.device)}"
+                 log_caption = f"❌ Sync Log \\- {escape_markdown_v2(args.device)}"
         
         if log_file_to_upload:
             resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs, parse_mode='MarkdownV2')
@@ -182,7 +300,7 @@ def main():
             f"❌ *Build Failed*\n\n"
             f"{info_block}\n\n"
             f"📋 *Log:* {log_link}\n"
-            f"📊 [Pipeline Overview]({args.build_url}pipeline-overview)"
+            f"📊 [View Run]({args.build_url})"
         )
         bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
         return
@@ -225,7 +343,7 @@ def main():
             resp = bot.send_document(
                 args.chat_id, 
                 json_file, 
-                caption=f"📄 Release JSON \- {escape_markdown_v2(args.device)}", 
+                caption=f"📄 Release JSON \\- {escape_markdown_v2(args.device)}", 
                 topic_id=args.topic_release_json,
                 parse_mode='MarkdownV2'
             )

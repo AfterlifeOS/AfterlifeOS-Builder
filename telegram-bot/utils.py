@@ -16,11 +16,6 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 REDIS_URL = os.environ.get("REDIS_URL")
 STICKER_ID = os.environ.get("STICKER_ID")
 
-JENKINS_URL = os.environ.get("JENKINS_URL")
-JENKINS_USER = os.environ.get("JENKINS_USER")
-JENKINS_TOKEN = os.environ.get("JENKINS_TOKEN")
-JENKINS_JOB_NAME = os.environ.get("JENKINS_JOB_NAME", "AfterlifeOS-Builder") 
-
 BASE_URL = "https://raw.githubusercontent.com/AfterlifeOS/device_afterlife_ota/refs/heads/16"
 DONATE_URL = "https://t.me/donate_zero/6"
 AFL_SUPPORT = "https://t.me/AfterLifeOS"
@@ -34,8 +29,10 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
 # GitHub Config
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-DB_REPO = os.environ.get("DB_REPO") # Format: username/repo
-GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
+GITHUB_REPO_NAME = os.environ.get("GITHUB_REPO_NAME")
+# Use DB_REPO if set, otherwise fallback to GITHUB_REPO_NAME
+DB_REPO = os.environ.get("DB_REPO", GITHUB_REPO_NAME) 
+GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "actions")
 DB_FILE_PATH = "database.json" # Path in repo
 
 # Parse Lists

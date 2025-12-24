@@ -1,6 +1,5 @@
-python-dotenv
 python-telegram-bot
-requests
-telegram
 redis
-python-jenkins
+python-dotenv
+requests
+PyGithub

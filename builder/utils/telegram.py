@@ -48,3 +48,32 @@ class TelegramBot:
         except Exception as e:
             print(f"[Telegram Error] Failed to send document: {e}")
             return None
+
+    def delete_message(self, chat_id, message_id):
+        url = f"{self.api_url}/deleteMessage"
+        data = {
+            "chat_id": chat_id,
+            "message_id": message_id
+        }
+        try:
+            requests.post(url, data=data)
+        except Exception as e:
+            print(f"[Telegram Error] Failed to delete message: {e}")
+
+    def edit_message(self, chat_id, message_id, text, parse_mode="Markdown"):
+        url = f"{self.api_url}/editMessageText"
+        data = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": parse_mode,
+            "disable_web_page_preview": True
+        }
+        try:
+            response = requests.post(url, data=data)
+            if not response.ok:
+                print(f"[Telegram Error] Edit Response: {response.text}")
+            return response.json()
+        except Exception as e:
+            print(f"[Telegram Error] Failed to edit message: {e}")
+            return None
