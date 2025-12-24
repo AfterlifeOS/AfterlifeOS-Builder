@@ -94,7 +94,7 @@ fi
 
 # Start building
 echo "Starting make process with all available cores..."
-m afterlife -j48 || { 
+m afterlife -j32 || { 
     kill $PARSER_PID 2>/dev/null
     echo "Build failed"; exit 1; 
 }
