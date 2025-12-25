@@ -184,7 +184,9 @@ async def generate_status_message(repo):
             # Calculate Duration
             duration_str = "0m"
             try:
-                start_time = run.created_at.replace(tzinfo=timezone.utc)
+                # Use run_started_at to exclude queue time, fallback to created_at
+                start_dt = getattr(run, "run_started_at", None) or run.created_at
+                start_time = start_dt.replace(tzinfo=timezone.utc)
                 now = datetime.now(timezone.utc)
                 diff = now - start_time
                 total_seconds = int(diff.total_seconds())
