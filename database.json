@@ -89,6 +89,12 @@
       "role": "user",
       "last_build_date": "2025-12-25",
       "daily_count": 1
+    },
+    "441152385": {
+      "username": "attack_dns24",
+      "role": "user",
+      "last_build_date": "2025-12-25",
+      "daily_count": 0
     }
   }
 }
