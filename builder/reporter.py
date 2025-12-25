@@ -335,7 +335,7 @@ def main():
     
     # Handle Release JSON
     json_link_md = ""
-    is_release = (args.release_status == 'true')
+    is_release = (args.release_status in ['Yes', 'true'])
     
     if is_release:
         json_file = os.path.join(out_dir, f"{args.device}.json")
