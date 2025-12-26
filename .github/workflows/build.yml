@@ -73,11 +73,6 @@ on:
         required: true
         default: '0'
 
-# Ensure only one build runs at a time, queuing others
-concurrency:
-  group: build-queue
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: self-hosted

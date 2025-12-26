@@ -211,9 +211,11 @@ async def generate_status_message(repo):
             has_activity = True
             username, userid = parse_run_info(run)
             
-            # Uniform display for all queue types
+            # Display actual status (Queued/Waiting/Pending)
+            status_label = run.status.capitalize() if run.status else "Queued"
+
             msg += (
-                f"🔵 <b>Status : Queued</b>\n"
+                f"🔵 <b>Status : {status_label}</b>\n"
                 f"├ By : <code>{username}</code>\n"
                 f"├ UserID : <code>{userid}</code>\n"
                 f"└ Running ID : <code>{run.id}</code>\n\n"
