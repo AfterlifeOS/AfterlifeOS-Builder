@@ -143,13 +143,13 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
-async def generate_status_message(repo):
+def _sync_status_generation(repo):
     try:
-        # Get active runs
-        runs = await asyncio.to_thread(repo.get_workflow_runs, status="in_progress")
-        queued = await asyncio.to_thread(repo.get_workflow_runs, status="queued")
-        waiting = await asyncio.to_thread(repo.get_workflow_runs, status="waiting")
-        pending = await asyncio.to_thread(repo.get_workflow_runs, status="pending")
+        # Get active runs (Blocking calls)
+        runs = list(repo.get_workflow_runs(status="in_progress"))
+        queued = list(repo.get_workflow_runs(status="queued"))
+        waiting = list(repo.get_workflow_runs(status="waiting"))
+        pending = list(repo.get_workflow_runs(status="pending"))
         
         msg = f"<b>🔭 System Status</b>\n<pre>GitHub Actions</pre>\n\n"
         has_activity = False
@@ -178,23 +178,34 @@ async def generate_status_message(repo):
         # In Progress
         for run in runs:
             has_activity = True
-            
             username, userid = parse_run_info(run)
             
-            # Calculate Duration
-            duration_str = "0m"
+            # Calculate Duration from JOB start time (Precision)
+            duration_str = "Starting..."
             try:
-                # Use run_started_at to exclude queue time, fallback to created_at
-                start_dt = getattr(run, "run_started_at", None) or run.created_at
-                start_time = start_dt.replace(tzinfo=timezone.utc)
-                now = datetime.now(timezone.utc)
-                diff = now - start_time
-                total_seconds = int(diff.total_seconds())
-                hours, remainder = divmod(total_seconds, 3600)
-                minutes, _ = divmod(remainder, 60)
-                if hours > 0: duration_str = f"{hours}h {minutes}m"
-                else: duration_str = f"{minutes}m"
-            except: pass
+                # Fetch jobs to get real execution start time
+                jobs = run.jobs()
+                start_dt = None
+                
+                # Find the active job
+                for j in jobs:
+                    if j.status == "in_progress":
+                        start_dt = j.started_at
+                        # If we find the specific 'build' job, prefer it
+                        if j.name == "build": 
+                            break
+                
+                if start_dt:
+                    start_time = start_dt.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    diff = now - start_time
+                    total_seconds = int(diff.total_seconds())
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    if hours > 0: duration_str = f"{hours}h {minutes}m"
+                    else: duration_str = f"{minutes}m"
+            except Exception: 
+                pass
 
             msg += (
                 f"🟢 <b>Status : Running Build</b>\n"
@@ -229,6 +240,10 @@ async def generate_status_message(repo):
 
     except Exception as e:
         return f"❌ Error: {e}", None
+
+async def generate_status_message(repo):
+    # Run heavy API calls in a separate thread to avoid blocking the bot
+    return await asyncio.to_thread(_sync_status_generation, repo)
 
 @restricted_command
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
