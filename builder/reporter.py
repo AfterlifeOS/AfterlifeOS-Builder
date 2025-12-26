@@ -179,7 +179,7 @@ def main():
                                     filled = int(pct / 10)
                                     empty = 10 - filled
                                     bar = "▰" * filled + "▱" * empty
-                                    progress_display = f"`[{bar}] {pct}%`\n📂 `{counts}`"
+                                    progress_display = f"🚀 *Monitoring*\n├ `[{bar}]` {pct}%\n└ *Jobs*: `{counts}`"
                 except: pass
             
             # Construct Message: Header -> Info -> Progress -> Link
@@ -187,7 +187,7 @@ def main():
             new_text = (
                 f"{header}\n"
                 f"{info_block}\n\n"
-                f"{progress_display}\n"
+                f"{progress_display}\n\n"
                 f"📊 [View Run]({args.build_url})"
             )
             
