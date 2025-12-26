@@ -21,55 +21,31 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         elif role == ROLE_ADMIN: admins.append(entry)
         else: regular_users.append(entry)
 
-    msg = "👥 **User Directory**\n"
+    msg = ""
 
-    def build_branch(title, items, icon):
-        if not items: return ""
-        text = f"├ {icon} **{title}**\n"
-        # Sort by Name
-        items.sort(key=lambda x: x[0].lower())
-        for idx, (name, uid) in enumerate(items):
-            is_last = (idx == len(items) - 1)
-            # Tree connector for items inside a category
-            # If it's the last category overall, this logic might need tweak, 
-            # but for simplicity inside the block:
-            sub_branch = "│ └"
-            text += f"{sub_branch} `{name}` (`{uid}`)\n"
-        return text
-
-    # We manually construct to ensure the main tree trunk '│' exists if needed, 
-    # but for a cleaner look, we will just stack the blocks.
-    
-    # Actually, a single connected tree is nicer:
-    # 👥 User Directory
-    # ├ 👑 Owner
-    # │ └ Name
-    # ├ 🛡 Admin
-    # │ └ Name
-    # └ 👤 User
-    #   └ Name
-
-    # Re-logic for single tree
     blocks = []
     if owners: blocks.append(('Owner', owners, '👑'))
     if admins: blocks.append(('Admin', admins, '🛡'))
     if regular_users: blocks.append(('User', regular_users, '👤'))
 
-    for i, (title, items, icon) in enumerate(blocks):
-        is_last_block = (i == len(blocks) - 1)
-        branch_char = "└" if is_last_block else "├"
-        
-        msg += f"{branch_char} {icon} **{title}s**\n"
+    for title, items, icon in blocks:
+        # Title is the Root of this block's tree
+        msg += f"{icon} **{title}s**\n"
         
         items.sort(key=lambda x: x[0].lower())
         for j, (name, uid) in enumerate(items):
-            # If current block is NOT last, we need a vertical line for the next blocks
-            indent = "  " if is_last_block else "│ "
-            sub_branch = "└" # Items are always leaves of their category
+            is_last_item = (j == len(items) - 1)
+            sub_branch = "└" if is_last_item else "├"
             
-            msg += f"{indent}{sub_branch} `{name}` (`{uid}`)\n"
+            msg += f"{sub_branch} `{name}` (`{uid}`)\n"
+        
+        # Add spacing between blocks
+        msg += "\n"
 
-    await update.message.reply_text(msg, parse_mode="Markdown")
+    if not msg:
+        msg = "No users found."
+
+    await update.message.reply_text(msg.strip(), parse_mode="Markdown")
 
 @restricted_command
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
