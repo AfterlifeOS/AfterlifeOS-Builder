@@ -138,8 +138,13 @@ async def quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     m, _ = divmod(r, 60)
     
     lim = "Unlimited" if role in [ROLE_ADMIN, ROLE_OWNER] else f"{MAX_QUOTA_USER}"
+    
     msg = (
-        f"<b>📊 Quota Status</b>\n📅 {now.strftime('%Y-%m-%d')}\n👤 {update.effective_user.first_name}\n🏷 {role.upper()}\n🔢 {used} / {lim}\n⏳ Reset in: {h}h {m}m"
+        f"📊 <b>Quota Status</b>\n"
+        f"├ User: <code>{html.escape(update.effective_user.first_name)}</code>\n"
+        f"├ Role: <code>{role.upper()}</code>\n"
+        f"├ Usage: <code>{used}/{lim}</code>\n"
+        f"└ Reset: <code>{h}h {m}m</code>"
     )
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 

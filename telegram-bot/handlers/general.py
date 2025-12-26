@@ -11,35 +11,65 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("📂 Database is empty.")
         return
 
-    msg = "📋 **Registered Users**\n\n"
+    # Grouping
+    owners, admins, regular_users = [], [], []
+    for uid, data in users.items():
+        role = data.get("role", ROLE_USER)
+        entry = (data.get("username", "Unknown"), uid)
+        
+        if role == ROLE_OWNER: owners.append(entry)
+        elif role == ROLE_ADMIN: admins.append(entry)
+        else: regular_users.append(entry)
+
+    msg = "👥 **User Directory**\n"
+
+    def build_branch(title, items, icon):
+        if not items: return ""
+        text = f"├ {icon} **{title}**\n"
+        # Sort by Name
+        items.sort(key=lambda x: x[0].lower())
+        for idx, (name, uid) in enumerate(items):
+            is_last = (idx == len(items) - 1)
+            # Tree connector for items inside a category
+            # If it's the last category overall, this logic might need tweak, 
+            # but for simplicity inside the block:
+            sub_branch = "│ └"
+            text += f"{sub_branch} `{name}` (`{uid}`)\n"
+        return text
+
+    # We manually construct to ensure the main tree trunk '│' exists if needed, 
+    # but for a cleaner look, we will just stack the blocks.
     
-    # Sort by role priority (Owner > Admin > User) then Username
-    def sort_key(item):
-        uid, data = item
-        role = data.get("role", ROLE_USER)
-        priority = {ROLE_OWNER: 0, ROLE_ADMIN: 1, ROLE_USER: 2}.get(role, 3)
-        return (priority, data.get("username", "").lower())
+    # Actually, a single connected tree is nicer:
+    # 👥 User Directory
+    # ├ 👑 Owner
+    # │ └ Name
+    # ├ 🛡 Admin
+    # │ └ Name
+    # └ 👤 User
+    #   └ Name
 
-    sorted_users = sorted(users.items(), key=sort_key)
+    # Re-logic for single tree
+    blocks = []
+    if owners: blocks.append(('Owner', owners, '👑'))
+    if admins: blocks.append(('Admin', admins, '🛡'))
+    if regular_users: blocks.append(('User', regular_users, '👤'))
 
-    for uid, data in sorted_users:
-        username = data.get("username", "Unknown")
-        role = data.get("role", ROLE_USER)
+    for i, (title, items, icon) in enumerate(blocks):
+        is_last_block = (i == len(blocks) - 1)
+        branch_char = "└" if is_last_block else "├"
         
-        icon = "👤"
-        if role == ROLE_ADMIN: icon = "🛡️"
-        if role == ROLE_OWNER: icon = "👑"
+        msg += f"{branch_char} {icon} **{title}s**\n"
         
-        msg += f"{icon} `{username}` (`{uid}`) - **{role.upper()}**\n"
+        items.sort(key=lambda x: x[0].lower())
+        for j, (name, uid) in enumerate(items):
+            # If current block is NOT last, we need a vertical line for the next blocks
+            indent = "  " if is_last_block else "│ "
+            sub_branch = "└" # Items are always leaves of their category
+            
+            msg += f"{indent}{sub_branch} `{name}` (`{uid}`)\n"
 
-    # Split message if too long (Telegram limit ~4096 chars)
-    if len(msg) > 4000:
-        # Simple splitting for now, sending multiple messages
-        chunks = [msg[i:i+4000] for i in range(0, len(msg), 4000)]
-        for chunk in chunks:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(msg, parse_mode="Markdown")
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 @restricted_command
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
