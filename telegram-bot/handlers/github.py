@@ -317,8 +317,15 @@ async def handle_github_callbacks(update: Update, context: ContextTypes.DEFAULT_
             try:
                 # Trigger Workflow
                 wf = await asyncio.to_thread(repo.get_workflow, WORKFLOW_FILENAME)
-                if await asyncio.to_thread(wf.create_dispatch, ref=GITHUB_BRANCH, inputs=p):
-                    await query.edit_message_text(f"✅ **Workflow Dispatched!**\nDevice: {p['DEVICE']}\nBranch: {GITHUB_BRANCH}\nCheck status shortly.", parse_mode=ParseMode.MARKDOWN)
+                success = await asyncio.to_thread(wf.create_dispatch, ref=GITHUB_BRANCH, inputs=p)
+
+                if success:
+                    try:
+                        await query.edit_message_text(f"✅ **Workflow Dispatched!**\nDevice: {p['DEVICE']}\nBranch: {GITHUB_BRANCH}\nCheck status shortly.", parse_mode=ParseMode.MARKDOWN)
+                    except BadRequest as e:
+                        # Ignore "Message is not modified" (happens on double clicks or network lag)
+                        if "message is not modified" not in str(e).lower():
+                            print(f"[BOT UI ERROR] {e}")
                 else:
                     await query.edit_message_text("❌ Dispatch returned False.")
             except Exception as e:
