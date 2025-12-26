@@ -12,6 +12,8 @@ if os.path.isdir(custom_lib_path):
 import argparse
 import glob
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import subprocess
 import time
 import re
@@ -35,14 +37,27 @@ def escape_code(text):
 def upload_to_gofile(file_path):
     print(f"Uploading {file_path} to GoFile...")
     headers = {'User-Agent': 'Mozilla/5.0'}
-    url = "https://upload.gofile.io/uploadFile"
     
+    # Robust Session for Uploads
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=frozenset(['POST'])
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    
+    url = "https://upload.gofile.io/uploadFile"
+
+    # 2. Upload
     try:
         with open(file_path, 'rb') as f:
-            upload_req = requests.post(
+            upload_req = session.post(
                 url,
                 files={'file': f},
-                headers=headers
+                headers=headers,
+                timeout=600 # 10 minutes timeout for large files
             )
             
             try:

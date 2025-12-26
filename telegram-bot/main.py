@@ -13,6 +13,7 @@ if os.path.isdir(custom_lib_path):
 from github import Github, Auth
 import redis
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.request import HTTPXRequest
 from dotenv import load_dotenv
 
 # Import Utils
@@ -38,7 +39,8 @@ def get_github_client():
         return None
     try:
         auth = Auth.Token(token)
-        g = Github(auth=auth)
+        # Add Timeout (60s) and Retry (5 times)
+        g = Github(auth=auth, timeout=60, retry=5)
         # Test connection
         print(f"[INIT] GitHub Connected: {g.get_user().login}")
         return g
@@ -65,7 +67,15 @@ async def main():
     gh_client = get_github_client()
 
     # 2. Build App
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Fix Connection Timeout Issues
+    trequest = HTTPXRequest(
+        connection_pool_size=20,
+        read_timeout=120.0,
+        write_timeout=120.0,
+        connect_timeout=120.0,
+        pool_timeout=120.0
+    )
+    app = ApplicationBuilder().token(BOT_TOKEN).request(trequest).build()
     
     # Inject dependencies into bot_data
     app.bot_data["redis"] = redis_client
