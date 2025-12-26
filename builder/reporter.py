@@ -353,8 +353,20 @@ def main():
     # Upload GoFile
     gofile_link = upload_to_gofile(rom_file) or "Upload Failed"
     
+    # --- EXTRA ARTIFACTS ---
+    extra_files = ["boot.img", "recovery.img", "vendor_boot.img", "dtbo.img"]
+    uploaded_extras = {} # Name -> Link
+    
+    for img_name in extra_files:
+        img_path = os.path.join(out_dir, img_name)
+        if os.path.exists(img_path):
+            print(f"Found extra artifact: {img_name}")
+            u_link = upload_to_gofile(img_path)
+            if u_link:
+                uploaded_extras[img_name] = u_link
+
     # Handle Release JSON
-    json_link_md = ""
+    json_url = ""
     is_release = (args.release_status in ['Yes', 'true'])
     
     if is_release:
@@ -369,28 +381,30 @@ def main():
             )
             if resp and 'result' in resp:
                 msg_id = resp['result']['message_id']
-                link = create_telegram_link(args.chat_id, args.topic_release_json, msg_id)
-                json_link_md = f"\n📄 *JSON:* [View File]({link})"
+                json_url = create_telegram_link(args.chat_id, args.topic_release_json, msg_id)
 
     # Final Success Message
     artifacts_block = "📦 *Artifacts*\n"
-    if is_release and json_link_md:
-        # Link JSON OTA is explicitly requested as "[JSON OTA](link)"
-        # Note: json_link_md previously was formatted as "\n📄 *JSON:* [View File](...)"
-        # We need to extract the URL or reconstruct it. 
-        # Since json_link_md is constructed conditionally, let's reconstruct the link part cleanly.
+    
+    # Build list of artifact items to render tree correctly
+    artifact_items = []
+    
+    # 1. ROM (Always first)
+    artifact_items.append(f"[ROM]({gofile_link})")
+    
+    # 2. Extras
+    for name, link in uploaded_extras.items():
+        artifact_items.append(f"[{name}]({link})")
         
-        # Re-using logic to get the link directly
-        json_url = ""
-        if 'link' in locals(): # Check if 'link' var exists from previous block
-             json_url = link
+    # 3. JSON (If exists)
+    if is_release and json_url:
+        artifact_items.append(f"[JSON OTA]({json_url})")
         
-        artifacts_block += (
-            f"├ [ROM]({gofile_link})\n"
-            f"└ [JSON OTA]({json_url})"
-        )
-    else:
-        artifacts_block += f"└ [ROM]({gofile_link})"
+    # Render Tree
+    for i, item in enumerate(artifact_items):
+        is_last = (i == len(artifact_items) - 1)
+        prefix = "└ " if is_last else "├ "
+        artifacts_block += f"{prefix}{item}\n"
 
     msg = (
         f"✅ *Build Success*\n"
