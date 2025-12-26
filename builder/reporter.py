@@ -120,15 +120,20 @@ def main():
     # Always use Tag for User to notify maintainer
     user_display = f"@{escape_markdown_v2(args.user)}"
 
-    # Common Info Block
+    # Minimalist Info Block (Tree Style - Expanded)
+    # Logic to condense Release info
+    rel_info = "Yes" if args.release_status in ['Yes', 'true'] else "No"
+
+    # Dynamic Tree Body
     info_block = (
-        f"📱 *Device:* `{escape_code(args.device)}`\n"
-        f"🚀 *Type:* `{escape_code(args.build_type)}`\n"
-        f"📢 *Release:* `{escape_code(args.release_status)}`\n"
-        f"🧩 *GMS:* `{escape_code(args.gms)}`\n"
-        f"🛠 *FSGen:* `{escape_code(args.fsgen)}`\n"
-        f"🧹 *Clean:* `{escape_code(args.install_clean)}` \\| *Full:* `{escape_code(args.full_clean)}`\n"
-        f"👤 *User:* {user_display}"
+        f"├ *Device:* `{escape_code(args.device)}`\n"
+        f"├ *Type:* `{escape_code(args.build_type)}`\n"
+        f"├ *GMS:* `{escape_code(args.gms)}`\n"
+        f"├ *FSGen:* `{escape_code(args.fsgen)}`\n"
+        f"├ *Release:* `{escape_code(rel_info)}`\n"
+        f"├ *Clean:* `{escape_code(args.install_clean)}`\n"
+        f"├ *Full Clean:* `{escape_code(args.full_clean)}`\n"
+        f"└ *User:* {user_display}"
     )
 
     # --- LOGIC HANDLER ---
@@ -167,22 +172,22 @@ def main():
                                 # Check for Bootstrap/Setup Phase
                                 if re.search(r"bootstrap|analyzing|initializing|including|finishing|writing packaging|writing legacy", desc):
                                     # Text Mode (No Bar)
-                                    clean_desc = desc.strip()[:30]
-                                    progress_display = f"Progress: `{escape_code(clean_desc)}\\.\\.\\. ({pct}%)`"
+                                    clean_desc = desc.strip()[:25]
+                                    progress_display = f"🧬 `{escape_code(clean_desc)}\\.\\.\\. ({pct}%)`"
                                 else:
                                     # Ninja Build Mode (With Bar)
                                     filled = int(pct / 10)
                                     empty = 10 - filled
-                                    bar = "█" * filled + "░" * empty
-                                    progress_display = f"Progress: `[{bar}] {pct}%`\n`({counts})`"
+                                    bar = "▰" * filled + "▱" * empty
+                                    progress_display = f"`[{bar}] {pct}%`\n📂 `{counts}`"
                 except: pass
             
             # Construct Message: Header -> Info -> Progress -> Link
             header = "🔨 *Building ROM\\.\\.\\.*"
             new_text = (
-                f"{header}\n\n"
+                f"{header}\n"
                 f"{info_block}\n\n"
-                f"{progress_display}\n\n"
+                f"{progress_display}\n"
                 f"📊 [View Run]({args.build_url})"
             )
             
@@ -208,7 +213,7 @@ def main():
                     # Escape dots for MarkdownV2: ... -> \\.\\.\\.
                     status_text = "🔄 *Syncing Source\\.\\.\\.*" if args.status == 'syncing' else "🔨 *Building ROM\\.\\.\\.*"
                     msg = (
-                        f"{status_text}\n\n"
+                        f"{status_text}\n"
                         f"{info_block}\n\n"
                         f"📊 [View Run]({args.build_url})"
                     )
@@ -233,7 +238,7 @@ def main():
     # --- STARTED ---
     if args.status == 'started':
         msg = (
-            f"🟢 *Build Started*\n\n"
+            f"🟢 *Build Started*\n"
             f"{info_block}\n\n"
             f"📊 [View Run]({args.build_url})"
         )
@@ -254,7 +259,7 @@ def main():
     # --- ABORTED ---
     if args.status == 'aborted':
         msg = (
-            f"⛔ *Build Aborted*\n\n"
+            f"⛔ *Build Aborted*\n"
             f"{info_block}\n\n"
             f"📊 [View Run]({args.build_url})"
         )
@@ -312,7 +317,7 @@ def main():
 
         # 2. Send Notification to Builder Topic
         msg = (
-            f"❌ *Build Failed*\n\n"
+            f"❌ *Build Failed*\n"
             f"{info_block}\n\n"
             f"📋 *Log:* {log_link}\n"
             f"📊 [View Run]({args.build_url})"
@@ -369,8 +374,8 @@ def main():
 
     # Final Success Message
     msg = (
-        f"✅ *Build Successfully*\n\n"
-        f"{info_block}\n"
+        f"✅ *Build Success*\n"
+        f"{info_block}\n\n"
         f"📦 *File:* `{escape_code(rom_name)}`\n"
         f"🔗 [Download via GoFile]({gofile_link})"
         f"{json_link_md}"
