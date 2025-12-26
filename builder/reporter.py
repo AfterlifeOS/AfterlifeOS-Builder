@@ -373,12 +373,29 @@ def main():
                 json_link_md = f"\n📄 *JSON:* [View File]({link})"
 
     # Final Success Message
+    artifacts_block = "📦 *Artifacts*\n"
+    if is_release and json_link_md:
+        # Link JSON OTA is explicitly requested as "[JSON OTA](link)"
+        # Note: json_link_md previously was formatted as "\n📄 *JSON:* [View File](...)"
+        # We need to extract the URL or reconstruct it. 
+        # Since json_link_md is constructed conditionally, let's reconstruct the link part cleanly.
+        
+        # Re-using logic to get the link directly
+        json_url = ""
+        if 'link' in locals(): # Check if 'link' var exists from previous block
+             json_url = link
+        
+        artifacts_block += (
+            f"├ [ROM]({gofile_link})\n"
+            f"└ [JSON OTA]({json_url})"
+        )
+    else:
+        artifacts_block += f"└ [ROM]({gofile_link})"
+
     msg = (
         f"✅ *Build Success*\n"
         f"{info_block}\n\n"
-        f"📦 *File:* `{escape_code(rom_name)}`\n"
-        f"🔗 [Download via GoFile]({gofile_link})"
-        f"{json_link_md}"
+        f"{artifacts_block}"
     )
     bot.send_message(args.chat_id, msg, topic_id=args.topic_builder, parse_mode='MarkdownV2')
 
