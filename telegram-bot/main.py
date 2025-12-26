@@ -30,7 +30,7 @@ from handlers.github import (
     handle_github_callbacks
 )
 from handlers.admin import add_user_command, remove_user_command, set_role_command, add_quota_command
-from handlers.general import start_command, help_command, list_users_command
+from handlers.general import start_command, help_command, list_users_command, guide_command
 
 def get_github_client():
     token = os.environ.get("GITHUB_TOKEN")
@@ -86,6 +86,7 @@ async def main():
     # --- GENERAL HANDLERS ---
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("guide", guide_command))
     app.add_handler(CommandHandler("listuser", list_users_command))
 
     # --- ADMIN HANDLERS ---

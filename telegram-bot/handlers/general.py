@@ -48,6 +48,42 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(msg.strip(), parse_mode="Markdown")
 
 @restricted_command
+async def guide_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📚 **AfterlifeOS Builder Guide**\n\n"
+        
+        "**1️⃣ Starting a Build**\n"
+        "Use `/build <device_codename> [manifest_url]`\n"
+        "• `device_codename`: The target device (e.g., `citrus`, `munch`).\n"
+        "• `manifest_url` (Optional): Direct link to a raw XML manifest file for dependencies.\n\n"
+        
+        "**2️⃣ Build Options Explained**\n"
+        "🔸 **Release Type**\n"
+        "• `user`: Production ready. Secure, no root, optimized.\n"
+        "• `userdebug`: Like user, but with root access & debug tools enabled. Best for testing.\n"
+        "• `eng`: Engineering build. Additional debug tools, less secure.\n\n"
+        
+        "🔸 **GMS Variant** (Google Apps)\n"
+        "• `Tree default`: Uses device tree settings.\n"
+        "• `Core/Basic`: Minimal Google Apps.\n"
+        "• `Full/Vanilla`: Full suite or None.\n\n"
+        
+        "🔸 **Clean Options**\n"
+        "• `Clean`: Removes the device's output directory (`make installclean`). Recommended between builds.\n"
+        "• `Full Clean`: Wipes the entire `out/` directory (`make clean`). Use only if experiencing weird compilation errors (Takes longer).\n\n"
+        
+        "🔸 **Other Settings**\n"
+        "• **FSGen**: Auto-generates filesystem config if missing.\n"
+        "• **Release**: If `Yes`, generates an OTA JSON file for updates.\n\n"
+        
+        "**3️⃣ Local Manifest Reference**\n"
+        "To include extra dependencies (kernel, device tree, vendor), create an XML file and pass its raw URL.\n\n"
+        "**Example Template:**\n"
+        "[View Reference XML](https://raw.githubusercontent.com/Arata-Labs/local_manifest/refs/heads/afl-16/local_manifests.xml)"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+@restricted_command
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 **Welcome to AfterlifeOS Build Bot!**\n\n"
