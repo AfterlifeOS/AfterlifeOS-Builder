@@ -23,6 +23,9 @@ def escape_markdown_v2(text):
     """Escapes all special characters for MarkdownV2 (outside code blocks)"""
     if not text:
         return ""
+    # 1. Escape backslash FIRST to avoid escaping the escapes later
+    text = text.replace('\\', '\\\\')
+    # 2. Escape other special characters
     special_chars = r"_*[]()~`>#+-=|{}.!"
     for char in special_chars:
         text = text.replace(char, f"\\{char}")
@@ -179,7 +182,7 @@ def main():
                                     filled = int(pct / 10)
                                     empty = 10 - filled
                                     bar = "▰" * filled + "▱" * empty
-                                    progress_display = f"🚀 *Monitoring*\n├ `[{bar}]` {pct}%\n└ *Jobs*: `{counts}`"
+                                    progress_display = f"🚀 *Monitoring*\n├ `[{bar}]` {pct}%\n└ *Jobs*: `{escape_code(counts)}`"
                 except: pass
             
             # Construct Message: Header -> Info -> Progress -> Link
@@ -394,7 +397,7 @@ def main():
     
     # 2. Extras
     for name, link in uploaded_extras.items():
-        artifact_items.append(f"[{name}]({link})")
+        artifact_items.append(f"[{escape_markdown_v2(name)}]({link})")
         
     # 3. JSON (If exists)
     if is_release and json_url:

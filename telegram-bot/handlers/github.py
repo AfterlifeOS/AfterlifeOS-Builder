@@ -318,7 +318,7 @@ async def handle_github_callbacks(update: Update, context: ContextTypes.DEFAULT_
     if data_str.startswith("build_action:"):
         act = data_str.split(":")[1]
         if act == "cancel":
-            await query.edit_message_text("❌ **Cancelled by user.**", parse_mode="Markdown")
+            await query.edit_message_text("❌ <b>Cancelled by user.</b>", parse_mode=ParseMode.HTML)
             if 'pending_build' in context.user_data: del context.user_data['pending_build']
         elif act == "start":
             role, _, rem = get_quota_status(query.from_user.id)
@@ -328,7 +328,7 @@ async def handle_github_callbacks(update: Update, context: ContextTypes.DEFAULT_
             
             p = context.user_data.get('pending_build')
             if not p:
-                await query.edit_message_text("⚠️ **Session Expired.**", parse_mode="Markdown")
+                await query.edit_message_text("⚠️ <b>Session Expired.</b>", parse_mode=ParseMode.HTML)
                 return
             
             repo = await asyncio.to_thread(get_repo, context)
@@ -343,7 +343,13 @@ async def handle_github_callbacks(update: Update, context: ContextTypes.DEFAULT_
 
                 if success:
                     try:
-                        await query.edit_message_text(f"✅ **Workflow Dispatched!**\nDevice: {p['DEVICE']}\nBranch: {GITHUB_BRANCH}\nCheck status shortly.", parse_mode=ParseMode.MARKDOWN)
+                        msg = (
+                            f"✅ <b>Workflow Dispatched!</b>\n"
+                            f"Device: <code>{p['DEVICE']}</code>\n"
+                            f"Branch: <code>{GITHUB_BRANCH}</code>\n"
+                            f"Check status shortly."
+                        )
+                        await query.edit_message_text(msg, parse_mode=ParseMode.HTML)
                     except BadRequest as e:
                         # Ignore "Message is not modified" (happens on double clicks or network lag)
                         if "message is not modified" not in str(e).lower():
