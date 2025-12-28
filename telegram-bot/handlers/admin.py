@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from datetime import datetime, timezone
-from utils import ADMIN_USER_IDS, load_db, commit_db_to_github, ROLE_ADMIN, ROLE_USER, ROLE_OWNER, restricted_command
+import asyncio
+from utils import ADMIN_USER_IDS, load_db, commit_db_to_github, atomic_db_update, ROLE_ADMIN, ROLE_USER, ROLE_OWNER, restricted_command
 
 @restricted_command
 async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,8 +64,17 @@ async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await update.message.reply_text("⏳ Syncing role change to GitHub...")
     
+    def set_role_modifier(db):
+        if "users" not in db or target_id not in db["users"]:
+            return False
+        db["users"][target_id]["role"] = new_role
+        return True
+
     commit_msg = f"database: Change {target_username} role from {old_role} to {new_role}"
-    if commit_db_to_github(db, commit_msg):
+    
+    success = await asyncio.to_thread(atomic_db_update, set_role_modifier, commit_msg)
+    
+    if success:
         msg = (
             f"✅ **Role Updated**\n\n"
             f"👤 **User:** `{target_username}` (`{target_id}`)\n"
@@ -150,21 +160,24 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "daily_count": 0
     }
     
-    # --- 5. Update & Save ---
-    if "users" not in db: db["users"] = {}
+    # --- 5. Update & Save (ATOMIC) ---
+    status_msg = await update.message.reply_text("⏳ Syncing to GitHub...")
     
-    # Check if exists to preserve count if just updating role? 
-    # Logic implies overwrite or add. Let's keep existing count if exists.
-    if str(target_id) in db["users"]:
-        new_user_data["daily_count"] = db["users"][str(target_id)].get("daily_count", 0)
-        new_user_data["last_build_date"] = db["users"][str(target_id)].get("last_build_date", today_utc)
+    # Define atomic modifier
+    def add_user_modifier(db):
+        if "users" not in db: db["users"] = {}
+        # Double-check inside lock
+        if str(target_id) in db["users"]:
+            return False # Fail if appeared during race
+        db["users"][str(target_id)] = new_user_data
+        return True
 
-    db["users"][str(target_id)] = new_user_data
-    
-    await status_msg.edit_text("⏳ Syncing to GitHub...")
-    
     commit_msg = f"database: Add {target_username} to database as {target_role}"
-    if commit_db_to_github(db, commit_msg):
+    
+    # Run blocking IO in thread
+    success = await asyncio.to_thread(atomic_db_update, add_user_modifier, commit_msg)
+
+    if success:
         msg = (
             f"✅ **User Added/Updated**\n\n"
             f"🆔 **ID:** `{target_id}`\n"
@@ -175,7 +188,7 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await status_msg.edit_text(msg, parse_mode="Markdown")
     else:
-        await status_msg.edit_text("❌ Failed to sync to GitHub. Check logs.")
+        await status_msg.edit_text("❌ Failed to sync (or User already exists).")
 
 @restricted_command
 async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -209,14 +222,23 @@ async def remove_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(f"❌ User ID `{target_id}` not found in database.", parse_mode="Markdown")
         return
 
-    # --- 3. Process Removal ---
+    # --- 3. Process Removal (ATOMIC) ---
     target_username = db["users"][target_id].get("username", "Unknown")
-    del db["users"][target_id]
+    # Don't delete from local 'db' yet, do it in modifier
     
     status_msg = await update.message.reply_text("⏳ Syncing removal to GitHub...")
     
+    def remove_user_modifier(db):
+        if "users" not in db or target_id not in db["users"]:
+            return False
+        del db["users"][target_id]
+        return True
+
     commit_msg = f"database: Remove {target_username} from database"
-    if commit_db_to_github(db, commit_msg):
+    
+    success = await asyncio.to_thread(atomic_db_update, remove_user_modifier, commit_msg)
+    
+    if success:
         msg = (
             f"✅ **User Removed**\n\n"
             f"🆔 **ID:** `{target_id}`\n"
@@ -277,26 +299,36 @@ async def add_quota_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ User `{target_username}` not found in database.", parse_mode="Markdown")
         return
 
-    # --- 4. Update Logic ---
+    # --- 4. Update Logic (ATOMIC) ---
+    # We calculate 'new_used' here just for display, but real calculation happens in modifier
     current_used = db["users"][target_id].get("daily_count", 0)
+    new_used_display = max(0, current_used - amount)
     
-    # "Reduce used count" logic
-    new_used = max(0, current_used - amount)
-    
-    if new_used == current_used and current_used == 0:
+    if new_used_display == current_used and current_used == 0:
         await update.message.reply_text(f"⚠️ User `{target_real_name}` already has 0 used builds (Full Quota).")
         return
 
-    db["users"][target_id]["daily_count"] = new_used
-    
     status_msg = await update.message.reply_text("⏳ Syncing quota change to GitHub...")
     
+    def add_quota_modifier(db):
+        if "users" not in db or target_id not in db["users"]:
+            return False
+        
+        # Recalculate inside lock
+        curr = db["users"][target_id].get("daily_count", 0)
+        new_val = max(0, curr - amount)
+        db["users"][target_id]["daily_count"] = new_val
+        return True
+
     commit_msg = f"quota: Add {amount} more quota for {target_real_name}"
-    if commit_db_to_github(db, commit_msg):
+    
+    success = await asyncio.to_thread(atomic_db_update, add_quota_modifier, commit_msg)
+    
+    if success:
         msg = (
             f"✅ **Quota Added**\n\n"
             f"👤 **User:** `{target_real_name}`\n"
-            f"📉 **Used:** `{current_used}` ➔ `{new_used}`\n"
+            f"📉 **Used:** `{current_used}` ➔ `{new_used_display}`\n"
             f"➕ **Added:** `{amount}` builds\n"
             f"☁️ **Synced:** GitHub"
         )

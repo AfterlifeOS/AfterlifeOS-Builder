@@ -1,6 +1,7 @@
 import asyncio
 import os
 import html
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -281,8 +282,27 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = convert_to_raw_url(context.args[1])
     
     if not url.startswith("http"):
-         await update.message.reply_text("❌ **Invalid URL.** Please provide a valid raw manifest URL (http/https).", parse_mode="Markdown")
+         await update.message.reply_text("❌ **Invalid URL.** Must start with http/https.", parse_mode="Markdown")
          return
+
+    if not url.endswith(".xml"):
+        await update.message.reply_text("❌ **Invalid File.** URL must point to an `.xml` file.", parse_mode="Markdown")
+        return
+
+    status_msg = await update.message.reply_text("🔎 Validating Manifest URL...")
+    
+    try:
+        # Use HEAD request to check validity without downloading content
+        resp = await asyncio.to_thread(requests.head, url, allow_redirects=True, timeout=5)
+        if resp.status_code != 200:
+            await status_msg.edit_text(f"❌ **URL Error.** Server returned status: `{resp.status_code}`", parse_mode="Markdown")
+            return
+    except Exception as e:
+        await status_msg.edit_text(f"❌ **Connection Failed.**\nError: `{str(e)}`", parse_mode="Markdown")
+        return
+
+    # Cleanup status msg
+    await status_msg.delete()
 
     params = {
         'DEVICE': dev, 'RELEASETYPE': 'user', 'GMS_VARIANT': 'Tree default',

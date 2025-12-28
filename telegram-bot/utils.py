@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import requests
+import time
 from datetime import datetime, timezone, timedelta
 from functools import partial, wraps
 from dotenv import load_dotenv
@@ -137,6 +138,38 @@ def commit_db_to_github(new_data, commit_message):
     except Exception as e:
         print(f"[DB ERROR] Commit Exception: {e}")
         return False
+
+def atomic_db_update(modifier_func, commit_message, max_retries=3):
+    """
+    Atomically updates the database with retries for race conditions.
+    :param modifier_func: Function that takes 'db' dict as input. 
+                          Should modify it in place and return True/False.
+                          If False, update is aborted.
+    """
+    attempt = 0
+    while attempt < max_retries:
+        # 1. Fetch Latest DB
+        db = load_db()
+        
+        # 2. Apply Modification
+        # We pass a copy or just rely on 'load_db' returning a fresh dict (it does)
+        should_proceed = modifier_func(db)
+        
+        if not should_proceed:
+            # Modifier decided to abort (e.g. user not found)
+            return False
+            
+        # 3. Try Commit
+        if commit_db_to_github(db, commit_message):
+            return True
+        
+        # 4. Retry Logic
+        attempt += 1
+        print(f"[DB WARN] Atomic update failed (Race condition?). Retrying {attempt}/{max_retries}...")
+        time.sleep(1 + attempt) # Exponential backoffish
+        
+    print("[DB ERROR] Atomic update failed after max retries.")
+    return False
 
 def get_user_data(user_id):
     db = load_db()
