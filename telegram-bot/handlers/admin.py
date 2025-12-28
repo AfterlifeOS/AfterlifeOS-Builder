@@ -18,18 +18,18 @@ async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- 2. Parse Arguments ---
-    # Usage: /setrole <ID> <Role>
+    # Usage: /setrole <Username/ID> <Role>
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
             "⚠️ **Invalid Usage**\n\n"
-            "Format: `/setrole <TelegramID> <Role>`\n"
+            "Format: `/setrole <Username/ID> <Role>`\n"
             f"Roles: `{ROLE_ADMIN}`, `{ROLE_USER}`",
             parse_mode="Markdown"
         )
         return
 
-    target_id = args[0]
+    target_input = args[0]
     new_role = args[1].lower()
     
     # Validate Role (Owner role cannot be set via command for safety, only admin/user)
@@ -37,10 +37,23 @@ async def set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Invalid role. Use `{ROLE_ADMIN}` or `{ROLE_USER}`.", parse_mode="Markdown")
         return
 
-    # --- 3. Update Database ---
-    # DB is already loaded in Step 1
-    if "users" not in db or target_id not in db["users"]:
-        await update.message.reply_text(f"❌ User ID `{target_id}` not found in database. Add them first.", parse_mode="Markdown")
+    # --- 3. Resolve User (Username -> ID) ---
+    target_id = None
+    
+    # Try finding by username in DB first
+    for uid, udata in db.get("users", {}).items():
+        u_name = udata.get("username", "")
+        if u_name.lower() == target_input.lower().replace("@", ""):
+            target_id = uid
+            break
+            
+    # If not found by name, check if input is ID
+    if not target_id and target_input.isdigit():
+        if target_input in db.get("users", {}):
+            target_id = target_input
+
+    if not target_id:
+        await update.message.reply_text(f"❌ User `{target_input}` not found in database.", parse_mode="Markdown")
         return
 
     # Update role
@@ -81,27 +94,53 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- 2. Parse Arguments ---
-    # Usage: /adduser <ID> <Username> [role]
+    # Usage: /adduser <Username> [role]
     args = context.args
-    if len(args) < 2:
+    if len(args) < 1:
         await update.message.reply_text(
             "⚠️ **Invalid Usage**\n\n"
-            "Format: `/adduser <TelegramID> <Username> [role]`\n"
-            "Example: `/adduser 123456789 user123 admin`",
+            "Format: `/adduser <Username> [role]`\n"
+            "Example: `/adduser @username admin`",
             parse_mode="Markdown"
         )
         return
 
-    target_id = args[0]
-    target_username = args[1]
-    target_role = args[2].lower() if len(args) > 2 else ROLE_USER
+    target_input = args[0]
+    target_role = args[1].lower() if len(args) > 1 else ROLE_USER
     
     # Validate Role
     if target_role not in [ROLE_ADMIN, ROLE_USER]:
         await update.message.reply_text(f"⚠️ Invalid role. Use `{ROLE_ADMIN}` or `{ROLE_USER}`.", parse_mode="Markdown")
         return
 
-    # --- 3. Prepare Data ---
+    # --- 3. Resolve ID ---
+    target_id = None
+    target_username = target_input
+
+    status_msg = await update.message.reply_text(f"🔎 Resolving `{target_input}`...")
+
+    # Try resolving via API
+    try:
+        # get_chat works with @username if bot has interacted or sometimes globally
+        chat = await context.bot.get_chat(target_input)
+        target_id = str(chat.id)
+        # Use the official username if available, else input
+        if chat.username:
+            target_username = chat.username
+    except Exception:
+        # If failed, maybe they passed an ID?
+        if target_input.isdigit():
+            target_id = target_input
+            target_username = f"User_{target_id}" # Fallback name
+        else:
+            await status_msg.edit_text(
+                "❌ **Could not resolve username.**\n"
+                "The bot may not have seen this user yet.\n"
+                "Please ask the user to `/start` the bot, or provide their Numeric ID."
+            )
+            return
+
+    # --- 4. Prepare Data ---
     today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     new_user_data = {
@@ -111,12 +150,18 @@ async def add_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "daily_count": 0
     }
     
-    # --- 4. Update & Save ---
+    # --- 5. Update & Save ---
     if "users" not in db: db["users"] = {}
     
+    # Check if exists to preserve count if just updating role? 
+    # Logic implies overwrite or add. Let's keep existing count if exists.
+    if str(target_id) in db["users"]:
+        new_user_data["daily_count"] = db["users"][str(target_id)].get("daily_count", 0)
+        new_user_data["last_build_date"] = db["users"][str(target_id)].get("last_build_date", today_utc)
+
     db["users"][str(target_id)] = new_user_data
     
-    status_msg = await update.message.reply_text("⏳ Syncing to GitHub...")
+    await status_msg.edit_text("⏳ Syncing to GitHub...")
     
     commit_msg = f"database: Add {target_username} to database as {target_role}"
     if commit_db_to_github(db, commit_msg):

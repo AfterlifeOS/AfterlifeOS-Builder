@@ -273,13 +273,17 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ **Quota Exceeded.** Please wait for reset.", parse_mode="Markdown")
         return
 
-    if not context.args:
-        await update.message.reply_text("⚠️ **Usage:** `/build <device>`", parse_mode="Markdown")
+    if len(context.args) < 2:
+        await update.message.reply_text("⚠️ **Usage:** `/build <device> <manifest_url>`\nManifest is now required.", parse_mode="Markdown")
         return
 
     dev = context.args[0]
-    url = convert_to_raw_url(context.args[1]) if len(context.args) > 1 else ""
+    url = convert_to_raw_url(context.args[1])
     
+    if not url.startswith("http"):
+         await update.message.reply_text("❌ **Invalid URL.** Please provide a valid raw manifest URL (http/https).", parse_mode="Markdown")
+         return
+
     params = {
         'DEVICE': dev, 'RELEASETYPE': 'user', 'GMS_VARIANT': 'Tree default',
         'INSTALLCLEAN': 'Yes', 'FULLCLEAN': 'No', 'FSGEN': 'Enable', 'RELEASE_BUILD': 'No',

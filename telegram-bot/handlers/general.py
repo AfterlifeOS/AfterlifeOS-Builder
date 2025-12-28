@@ -53,9 +53,9 @@ async def guide_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📚 **AfterlifeOS Builder Guide**\n\n"
         
         "🟢 **Starting a Build**\n"
-        "├ `/build <device> [manifest]`\n"
+        "├ `/build <device> <manifest>`\n"
         "├ `device`: Codename (e.g. `citrus`)\n"
-        "└ `manifest`: XML URL (Optional)\n\n"
+        "└ `manifest`: XML URL (Required)\n\n"
         
         "⚙️ **Build Options**\n"
         "├ **Release Type**\n"
@@ -110,7 +110,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 **AfterlifeOS Bot Help**\n\n"
         "**👤 User Commands:**\n"
-        "`/build <device> [manifest_url]` - Start a new build menu.\n"
+        "`/guide` - View detailed build options & guide.\n"
+        "`/build <device> <manifest_url>` - Start a new build (Manifest required).\n"
         "`/cancel <RunID>` - Cancel a running build (ID from /status).\n"
         "`/quota` - Check your daily build quota.\n"
         "`/status` - View current build queue.\n"
@@ -122,8 +123,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_admin:
         help_text += (
             "**🛡️ Admin Commands:**\n"
-            "`/adduser <ID> <Name> [role]` - Add/Update a user in DB.\n"
+            "`/adduser <Username> [role]` - Add/Update a user (Try @username first).\n"
             "`/removeuser <ID>` - Remove a user from DB.\n"
+            "`/setrole <Username/ID> <role>` - Change user role.\n"
             "`/setbanner` - Set banner (Reply to image).\n"
             "`/removebanner` - Remove banner.\n"
             "_(Admins and Owner have unlimited quota and can cancel any build)_\n\n"
