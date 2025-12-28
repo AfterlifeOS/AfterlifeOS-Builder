@@ -2,6 +2,7 @@ import asyncio
 import os
 import html
 import requests
+import xml.etree.ElementTree as ET
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -292,11 +293,23 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text("🔎 Validating Manifest URL...")
     
     try:
-        # Use HEAD request to check validity without downloading content
-        resp = await asyncio.to_thread(requests.head, url, allow_redirects=True, timeout=5)
+        # Download content (Timeout 10s to be safe)
+        resp = await asyncio.to_thread(requests.get, url, allow_redirects=True, timeout=10)
+        
         if resp.status_code != 200:
             await status_msg.edit_text(f"❌ **URL Error.** Server returned status: `{resp.status_code}`", parse_mode="Markdown")
             return
+            
+        # Parse XML
+        try:
+            root = ET.fromstring(resp.content)
+            if root.tag != "manifest":
+                await status_msg.edit_text("❌ **Invalid Manifest.** Root tag must be `<manifest>`.", parse_mode="Markdown")
+                return
+        except ET.ParseError as e:
+            await status_msg.edit_text(f"❌ **XML Syntax Error.**\n`{str(e)}`", parse_mode="Markdown")
+            return
+            
     except Exception as e:
         await status_msg.edit_text(f"❌ **Connection Failed.**\nError: `{str(e)}`", parse_mode="Markdown")
         return
