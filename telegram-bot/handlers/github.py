@@ -225,7 +225,15 @@ def _sync_status_generation(repo):
         
         # Queued / Waiting / Pending
         from itertools import chain
-        for run in chain(queued, waiting, pending):
+        
+        # Combine all queue types
+        all_queued = list(chain(queued, waiting, pending))
+        
+        # Sort by creation time ASCENDING (Oldest first -> First in Line)
+        # Handle cases where created_at might be None just in case
+        all_queued.sort(key=lambda x: x.created_at if x.created_at else datetime.now(timezone.utc))
+
+        for run in all_queued:
             has_activity = True
             username, userid = parse_run_info(run)
             
@@ -285,10 +293,6 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not url.startswith("http"):
          await update.message.reply_text("❌ **Invalid URL.** Must start with http/https.", parse_mode="Markdown")
          return
-
-    if not url.endswith(".xml"):
-        await update.message.reply_text("❌ **Invalid File.** URL must point to an `.xml` file.", parse_mode="Markdown")
-        return
 
     status_msg = await update.message.reply_text("🔎 Validating Manifest URL...")
     

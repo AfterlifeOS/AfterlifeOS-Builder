@@ -200,10 +200,28 @@ async def run_redis_command(redis_client, command_name, *args, **kwargs):
 # === FORMATTING UTILS ===
 def convert_to_raw_url(url):
     if not url: return ""
+    
+    # GitHub
     if "github.com" in url and "/blob/" in url:
         return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    
+    # GitLab (Official)
     if "gitlab.com" in url and "/blob/" in url:
         return url.replace("/blob/", "/raw/")
+
+    # Bitbucket
+    if "bitbucket.org" in url and "/src/" in url:
+        return url.replace("/src/", "/raw/")
+
+    # GitHub Gist
+    if "gist.github.com" in url and "/raw" not in url:
+        return url.rstrip("/") + "/raw"
+
+    # Generic Fallback (Gitea, Forgejo, Self-hosted GitLab, etc.)
+    # Most git frontends use /blob/ for UI and /raw/ for raw content
+    if "/blob/" in url:
+        return url.replace("/blob/", "/raw/")
+        
     return url
 
 def bytes_to_gb(size_bytes):
