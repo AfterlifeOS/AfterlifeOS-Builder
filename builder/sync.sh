@@ -67,16 +67,14 @@ except Exception as e:
     mkdir -p ".repo/local_manifests" || { echo "Failed to create .repo/local_manifests"; exit 1; }
 
     # Handle Auth for Private Manifest
-    FINAL_MANIFEST_URL="$AOSP_MANIFEST_URL"
     if [ -n "$GITHUB_TOKEN" ]; then
-        # Remove https:// prefix if present to avoid double protocol
-        CLEAN_URL=${AOSP_MANIFEST_URL#"https://"}
-        FINAL_MANIFEST_URL="https://x-access-token:${GITHUB_TOKEN}@${CLEAN_URL}"
-        echo "Authenticated with GitHub Token for Manifest."
+        echo "Configuring git credential helper for GitHub..."
+        # Use git config instead of embedding token in URL to prevent leaks in .git/config
+        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
     fi
 
     echo "Initializing repo with AOSP main manifest from $AOSP_MANIFEST_URL on branch $AOSP_MANIFEST_BRANCH"
-    repo init -u "$FINAL_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs || { echo "Repo init failed for AOSP main manifest"; exit 1; }
+    repo init -u "$AOSP_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs || { echo "Repo init failed for AOSP main manifest"; exit 1; }
 
     # --- 3. APPLY NEW CUSTOM MANIFEST ---
     if [ -n "$LOCAL_MANIFEST_URL" ]; then
@@ -97,4 +95,4 @@ except Exception as e:
 
     echo "Syncing Source stage complete."
 
-} 2>&1 | tee "$LOG_FILE"
+} 2>&1 | sed "s|$GITHUB_TOKEN|[REDACTED]|g" | tee "$LOG_FILE"
