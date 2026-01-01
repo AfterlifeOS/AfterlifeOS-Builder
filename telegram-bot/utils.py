@@ -239,18 +239,35 @@ def fetch_rom_data(device_codename):
             j = res.json()
             if "response" in j and j["response"]:
                 item = j["response"][0]
+                
+                # Logic to get latest variant info
+                variants = item.get("variants", {})
+                best_variant = None
+                latest_ts = 0
+                
+                # Find latest variant by timestamp
+                for v_name, v_data in variants.items():
+                    ts = v_data.get("timestamp", 0)
+                    if ts > latest_ts:
+                        latest_ts = ts
+                        best_variant = v_data
+                
+                # Fallback to root if no variants or empty
+                if not best_variant:
+                    best_variant = item
+
                 mt_link = item.get("telegram", "")
                 if mt_link and not mt_link.startswith("http"): mt_link = f"https://{mt_link}"
                 
                 return {
-                    "device_codename": device_codename,
+                    "device_codename": item.get("device_code", device_codename),
                     "device_name": item.get("device"),
                     "rom_name": "AfterlifeOS",
-                    "version": item.get("version"),
-                    "release_codename": item.get("codename"),
+                    "version": best_variant.get("version"),
+                    "release_codename": best_variant.get("codename"),
                     "download": item.get("download"),
-                    "timestamp": item.get("timestamp"),
-                    "size": item.get("size"),
+                    "timestamp": best_variant.get("timestamp") or 0,
+                    "size": best_variant.get("size") or 0,
                     "build_type": item.get("buildtype"),
                     "maintainer_name": item.get("maintainer"),
                     "maintainer_link": mt_link, 
