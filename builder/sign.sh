@@ -3,14 +3,11 @@
 # Arguments:
 # 1: DEVICE
 # 2: RELEASETYPE
+# 3: PROGRESS_FILE (Optional, defaults to /dev/null)
 
 DEVICE="$1"
 RELEASETYPE="$2"
-
-# Ensure WORKSPACE is set for progress.txt
-if [ -z "$WORKSPACE" ]; then
-    WORKSPACE=$(pwd)
-fi
+PROGRESS_FILE="${3:-/dev/null}"
 
 echo "Initializing Signing Environment..."
 source build/envsetup.sh > /dev/null
@@ -28,7 +25,7 @@ fi
 echo "Starting Signing & Packaging process..."
 
 # --- STEP 1: SIGNING ---
-echo "100,1,Signing Target Files..." > "${WORKSPACE}/progress.txt"
+echo "100,1,Signing Target Files..." > "$PROGRESS_FILE"
 
 VERSION_RAW=$(get_build_var AFTERLIFE_VERSION)
 VERSION_LOWER=$(echo "$VERSION_RAW" | tr '[:upper:]' '[:lower:]')
@@ -218,7 +215,7 @@ sign_target_files_apks -o -d ${KEYS_DIR} \
     "${OUT}/${AFTERLIFE_BUILD_NAME}-signed-target_files.zip" || { echo "Signing Failed!"; exit 1; }
 
 # --- STEP 2: PACKAGING ---
-echo "100,1,Generating OTA Zip..." > "${WORKSPACE}/progress.txt"
+echo "100,1,Generating OTA Zip..." > "$PROGRESS_FILE"
 
 echo "Generating installable OTA zip..."
 ota_from_target_files -k ${KEYS_DIR}/releasekey \
@@ -231,7 +228,7 @@ echo "Cleaning up signed target files..."
 rm -f "${OUT}/${AFTERLIFE_BUILD_NAME}-signed-target_files.zip"
 
 # --- STEP 3: JSON GENERATION ---
-echo "100,1,Generating JSON..." > "${WORKSPACE}/progress.txt"
+echo "100,1,Generating JSON..." > "$PROGRESS_FILE"
 
 echo "Generating OTA JSON for signed zip..."
 ./vendor/afterlife/tools/generate_json_build_info.sh "$DEVICE" "$OUT" "${AFTERLIFE_BUILD_NAME}.zip"
