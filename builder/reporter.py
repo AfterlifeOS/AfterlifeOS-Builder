@@ -172,8 +172,12 @@ def main():
                                 counts = parts[1]
                                 desc = parts[2].lower()
                                 
+                                # Check for Signing/Packaging (Text Only, No Pct)
+                                if any(x in desc for x in ["signing target files", "generating ota zip", "generating json"]):
+                                    clean_desc = desc.replace('.', '').strip().title()
+                                    progress_display = f"⚙️ `{escape_code(clean_desc)}\\.\\.\\.`"
                                 # Check for Bootstrap/Setup Phase
-                                if re.search(r"bootstrap|analyzing|initializing|including|finishing|writing packaging|writing legacy", desc):
+                                elif re.search(r"bootstrap|analyzing|initializing|including|finishing|writing packaging|writing legacy", desc):
                                     # Text Mode (No Bar)
                                     clean_desc = desc.strip()[:25]
                                     progress_display = f"🧬 `{escape_code(clean_desc)}\\.\\.\\. ({pct}%)`"
@@ -193,11 +197,11 @@ def main():
             except: pass
 
             if "signing target files" in desc_lower:
-                header = "🔐 *Signing Build\\.\\.\\.*"
+                header = "🔐 *Signing Build*"
             elif "generating ota zip" in desc_lower or "generating json" in desc_lower:
-                header = "📦 *Packaging OTA\\.\\.\\.*"
+                header = "📦 *Packaging OTA*"
             else:
-                header = "🔨 *Building ROM\\.\\.\\.*"
+                header = "🔨 *Building ROM*"
 
             # Construct Message: Header -> Info -> Progress -> Link
             new_text = (
