@@ -185,8 +185,21 @@ def main():
                                     progress_display = f"🚀 *Monitoring*\n├ `[{bar}]` {pct}%\n└ *Jobs*: `{escape_code(counts)}`"
                 except: pass
             
+            # Dynamic Header based on description
+            desc_lower = ""
+            try:
+                if 'desc' in locals():
+                    desc_lower = desc.lower()
+            except: pass
+
+            if "signing" in desc_lower:
+                header = "🔐 *Signing Build\\.\\.\\.*"
+            elif "packaging" in desc_lower or "generating" in desc_lower:
+                header = "📦 *Packaging OTA\\.\\.\\.*"
+            else:
+                header = "🔨 *Building ROM\\.\\.\\.*"
+
             # Construct Message: Header -> Info -> Progress -> Link
-            header = "🔨 *Building ROM\\.\\.\\.*"
             new_text = (
                 f"{header}\n"
                 f"{info_block}\n\n"
@@ -277,36 +290,44 @@ def main():
         # 1. Upload Log to Error Logs Topic
         # Prioritize out/error.log (Root of out)
         error_log_root = os.path.join(args.source_dir, 'out', 'error.log')
+        sign_log = os.path.join(workspace, 'sign.log')
+        build_log = os.path.join(workspace, 'build.log')
+        sync_log = os.path.join(workspace, 'sync.log')
         
         log_file_to_upload = None
         log_caption = f"❌ Error Log \\- {escape_markdown_v2(args.device)}"
         
-        if os.path.exists(error_log_root):
+        # Priority 1: Signing Log (If failed during signing step)
+        if os.path.exists(sign_log):
+            print("Found sign.log. Tailing it...")
+            temp_log = "sign_failure_tail.txt"
+            with open(temp_log, 'w') as f:
+                f.write(get_file_tail(sign_log, 200))
+            log_file_to_upload = temp_log
+            log_caption = f"❌ Signing Log \\- {escape_markdown_v2(args.device)}"
+
+        # Priority 2: Standard Error Log
+        elif os.path.exists(error_log_root):
             print(f"Found error.log at: {error_log_root}")
             log_file_to_upload = error_log_root
-        else:
-            # 3. Check for build.log (Build Failure) - Prioritize this over sync.log
-            # If build.log exists, it means we reached the build stage.
-            build_log = os.path.join(workspace, 'build.log')
-            sync_log = os.path.join(workspace, 'sync.log')
             
-            if os.path.exists(build_log):
-                print("error.log not found, found build.log. Tailing it...")
-                temp_log = "build_failure_tail.txt"
-                with open(temp_log, 'w') as f:
-                    f.write(get_file_tail(build_log, 200))
-                log_file_to_upload = temp_log
-                log_caption = f"❌ Build Log \\- {escape_markdown_v2(args.device)}"
-            
-            # 4. Check for sync.log (Sync Failure)
-            # Only if build.log doesn't exist (failed before build stage)
-            elif os.path.exists(sync_log):
-                 print("error.log and build.log not found, found sync.log. Tailing it...")
-                 temp_log = "sync_failure_tail.txt"
-                 with open(temp_log, 'w') as f:
-                     f.write(get_file_tail(sync_log, 200))
-                 log_file_to_upload = temp_log
-                 log_caption = f"❌ Sync Log \\- {escape_markdown_v2(args.device)}"
+        # Priority 3: Build Log (Build Failure)
+        elif os.path.exists(build_log):
+            print("error.log not found, found build.log. Tailing it...")
+            temp_log = "build_failure_tail.txt"
+            with open(temp_log, 'w') as f:
+                f.write(get_file_tail(build_log, 200))
+            log_file_to_upload = temp_log
+            log_caption = f"❌ Build Log \\- {escape_markdown_v2(args.device)}"
+        
+        # Priority 4: Sync Log (Sync Failure)
+        elif os.path.exists(sync_log):
+             print("error.log and build.log not found, found sync.log. Tailing it...")
+             temp_log = "sync_failure_tail.txt"
+             with open(temp_log, 'w') as f:
+                 f.write(get_file_tail(sync_log, 200))
+             log_file_to_upload = temp_log
+             log_caption = f"❌ Sync Log \\- {escape_markdown_v2(args.device)}"
         
         if log_file_to_upload:
             resp = bot.send_document(args.chat_id, log_file_to_upload, caption=log_caption, topic_id=args.topic_error_logs, parse_mode='MarkdownV2')
@@ -315,7 +336,7 @@ def main():
                 log_link = f"[View Log File]({create_telegram_link(args.chat_id, args.topic_error_logs, msg_id)})"
             
             # Clean up temp
-            if log_file_to_upload in ["build_failure_tail.txt", "sync_failure_tail.txt"]:
+            if log_file_to_upload in ["build_failure_tail.txt", "sync_failure_tail.txt", "sign_failure_tail.txt"]:
                 os.remove(log_file_to_upload)
 
         # 2. Send Notification to Builder Topic

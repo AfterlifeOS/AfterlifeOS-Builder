@@ -310,6 +310,32 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if root.tag != "manifest":
                 await status_msg.edit_text("❌ **Invalid Manifest.** Root tag must be `<manifest>`.", parse_mode="Markdown")
                 return
+
+            # --- SECURITY VALIDATION ---
+            # 1. Check for Forbidden Remove-Projects
+            for rm in root.findall('remove-project'):
+                rm_path = rm.get('path', '')
+                rm_name = rm.get('name', '')
+                
+                if "vendor/afterlife-priv/keys" in rm_path:
+                    await status_msg.edit_text("⛔ **Security Violation.**\nRemoving `vendor/afterlife-priv/keys` is forbidden.", parse_mode="Markdown")
+                    return
+                
+                if "AfterlifeOS/vendor_afterlife-priv_keys" in rm_name:
+                    await status_msg.edit_text("⛔ **Security Violation.**\nRemoving keys repo by name is forbidden.", parse_mode="Markdown")
+                    return
+
+            # 2. Check for Forbidden Projects (Overwrites)
+            for proj in root.findall('project'):
+                p_path = proj.get('path', '')
+                
+                # Check for exact matches or sub-paths if necessary. 
+                # User requested strict blocking for these paths.
+                if p_path in ["vendor/afterlife-priv/keys", "vendor/afterlife-priv"]:
+                    await status_msg.edit_text(f"⛔ **Security Violation.**\nOverwriting `{p_path}` is forbidden.", parse_mode="Markdown")
+                    return
+            # ---------------------------
+
         except ET.ParseError as e:
             await status_msg.edit_text(f"❌ **XML Syntax Error.**\n`{str(e)}`", parse_mode="Markdown")
             return

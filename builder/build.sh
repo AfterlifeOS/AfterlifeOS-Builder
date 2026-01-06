@@ -65,8 +65,10 @@ if [ "$INSTALLCLEAN" == "Yes" ]; then
 fi
 
 # Start building
-echo "Starting make process with all available cores..."
-m afterlife -j32 || { 
+echo "Starting make process (target-files-package otatools)..."
+
+# 2. Build Target Files & OTA Tools
+mka target-files-package otatools -j32 || { 
     echo "Build failed"; exit 1; 
 }
 
