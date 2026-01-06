@@ -192,9 +192,9 @@ def main():
                     desc_lower = desc.lower()
             except: pass
 
-            if "signing" in desc_lower:
+            if "signing target files" in desc_lower:
                 header = "🔐 *Signing Build\\.\\.\\.*"
-            elif "packaging" in desc_lower or "generating" in desc_lower:
+            elif "generating ota zip" in desc_lower or "generating json" in desc_lower:
                 header = "📦 *Packaging OTA\\.\\.\\.*"
             else:
                 header = "🔨 *Building ROM\\.\\.\\.*"
