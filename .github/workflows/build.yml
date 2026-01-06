@@ -121,6 +121,11 @@ jobs:
           
       - name: Prepare Scripts
         run: |
+          # Kill potential stale sessions from previous runs
+          tmux kill-session -t sync_session 2>/dev/null || true
+          tmux kill-session -t build_session 2>/dev/null || true
+          tmux kill-session -t sign_session 2>/dev/null || true
+          
           chmod +x builder/*.sh
           chmod +x builder/*.py
           
