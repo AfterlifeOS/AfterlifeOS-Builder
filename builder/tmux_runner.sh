@@ -11,6 +11,21 @@ COMMAND="$2"
 LOG_FILE="$3"
 PROGRESS_FILE="$4"
 
+# Define Marker files early for trap safety
+EXIT_CODE_FILE="/tmp/${SESSION_NAME}_exit"
+DONE_FILE="/tmp/${SESSION_NAME}_done"
+
+# --- SIGNAL TRAP (AUTO KILL) ---
+# If this script (the runner) is killed by GitHub Actions (Cancel),
+# we must ensure the background tmux session is also killed.
+cleanup_trap() {
+    echo "[TMUX] Signal received (Cancelled). Killing session: $SESSION_NAME"
+    tmux kill-session -t "$SESSION_NAME" 2>/dev/null
+    rm -f "$EXIT_CODE_FILE" "$DONE_FILE"
+    exit 130
+}
+trap 'cleanup_trap' SIGINT SIGTERM
+
 # Ensure no previous session exists
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null
 
@@ -18,9 +33,7 @@ tmux kill-session -t "$SESSION_NAME" 2>/dev/null
 echo "[TMUX] Creating session: $SESSION_NAME"
 tmux new-session -d -s "$SESSION_NAME"
 
-# Marker files for status
-EXIT_CODE_FILE="/tmp/${SESSION_NAME}_exit"
-DONE_FILE="/tmp/${SESSION_NAME}_done"
+# Clean markers
 rm -f "$EXIT_CODE_FILE" "$DONE_FILE"
 
 # Prepare the command:

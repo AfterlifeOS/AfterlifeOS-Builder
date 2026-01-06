@@ -299,6 +299,15 @@ jobs:
               --source-dir "$AOSP_SOURCE_DIR"
           fi
 
+      - name: Force Kill Processes
+        if: cancelled()
+        run: |
+          echo "Workflow cancelled. Ensuring processes are dead..."
+          tmux kill-session -t sync_session 2>/dev/null || true
+          tmux kill-session -t build_session 2>/dev/null || true
+          # Kill any lingering monitor
+          pkill -f "reporter.py --status monitoring" || true
+
       - name: Notify Cancelled
         if: cancelled()
         run: |
