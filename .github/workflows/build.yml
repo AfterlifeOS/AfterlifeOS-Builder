@@ -104,7 +104,7 @@ jobs:
       
       # Constant
       AOSP_MANIFEST_URL: 'https://github.com/AfterlifeOS/afterlife_manifest.git'
-      AOSP_MANIFEST_BRANCH: '16'
+      AOSP_MANIFEST_BRANCH: '16.2'
       
       # Auth for Scripts (Using Custom PAT for Private Repos & Push Access)
       GITHUB_TOKEN: ${{ secrets.GH_PAT }}
