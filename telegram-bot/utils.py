@@ -17,7 +17,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 REDIS_URL = os.environ.get("REDIS_URL")
 STICKER_ID = os.environ.get("STICKER_ID")
 
-BASE_URL = "https://raw.githubusercontent.com/AfterlifeOS/device_afterlife_ota/refs/heads/16"
+BASE_URL = "https://raw.githubusercontent.com/AfterlifeOS/device_afterlife_ota/refs/heads/16.2"
 DONATE_URL = "https://t.me/donate_zero/6"
 AFL_SUPPORT = "https://t.me/AfterLifeOS"
 SOURCE_CHANGELOGS_URL = "https://afterlifeos.com/changelog/"
