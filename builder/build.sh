@@ -54,7 +54,7 @@ if [ "$FULLCLEAN" == "Yes" ]; then
 fi
 
 # Run lunch command
-LUNCH_COMMAND="lunch afterlife_${DEVICE}-bp2a-${RELEASETYPE}"
+LUNCH_COMMAND="lunch afterlife_${DEVICE}-bp4a-${RELEASETYPE}"
 echo "Running lunch command: $LUNCH_COMMAND"
 $LUNCH_COMMAND || { echo "Lunch command failed"; exit 1; }
 

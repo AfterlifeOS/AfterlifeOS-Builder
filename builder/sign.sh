@@ -11,7 +11,7 @@ PROGRESS_FILE="${3:-/dev/null}"
 
 echo "Initializing Signing Environment..."
 source build/envsetup.sh > /dev/null
-lunch afterlife_${DEVICE}-bp2a-${RELEASETYPE} > /dev/null
+lunch afterlife_${DEVICE}-bp4a-${RELEASETYPE} > /dev/null
 
 KEYS_DIR="vendor/afterlife-priv/keys"
 
