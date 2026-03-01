@@ -22,18 +22,6 @@ if [ ! -d "$KEYS_DIR" ]; then
     exit 1
 fi
 
-echo "Checking missing APEX payload keys..."
-
-shopt -s nullglob
-for i in $KEYS_DIR/*.pk8; do
-    base="${i%.pk8}"
-    if [ ! -f "${base}.pem" ]; then
-        echo "Generating payload key: ${base}.pem"
-        openssl genrsa -out "${base}.pem" 4096
-    fi
-done
-shopt -u nullglob
-
 echo "Starting Signing & Packaging process..."
 
 # --- STEP 1: SIGNING ---
