@@ -63,11 +63,11 @@ echo "Ensuring local manifests directory exists..."
 mkdir -p ".repo/local_manifests" || { echo "Failed to create .repo/local_manifests"; exit 1; }
 
 # Handle Auth for Private Manifest
-if [ -n "$GITHUB_TOKEN" ]; then
-    echo "Configuring git credential helper for GitHub..."
+#if [ -n "$GITHUB_TOKEN" ]; then
+#    echo "Configuring git credential helper for GitHub..."
     # Use git config instead of embedding token in URL to prevent leaks in .git/config
-    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-fi
+#    git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+#fi
 
 echo "Initializing repo with AOSP main manifest from $AOSP_MANIFEST_URL on branch $AOSP_MANIFEST_BRANCH"
 repo init -u "$AOSP_MANIFEST_URL" -b "$AOSP_MANIFEST_BRANCH" --depth=1 --git-lfs || { echo "Repo init failed for AOSP main manifest"; exit 1; }
