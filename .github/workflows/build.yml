@@ -246,43 +246,43 @@ jobs:
           # Kill Monitor after build finishes
           kill $MONITOR_PID || true
 
-      - name: Sign & Package ROM
-        id: sign_rom
-        if: success()
-        run: |
+#      - name: Sign & Package ROM
+#        id: sign_rom
+#        if: success()
+#        run: |
           # Start Monitoring in Background (Reporter reads progress.txt)
-          python3 builder/reporter.py \
-            --status monitoring \
-            --device "$DEVICE" \
-            --build-type "$RELEASETYPE" \
-            --release-status "$RELEASE_BUILD" \
-            --gms "$GMS_VARIANT" \
-            --fsgen "$FSGEN" \
-            --install-clean "$INSTALLCLEAN" \
-            --full-clean "$FULLCLEAN" \
-            --user "$BUILD_USER" \
-            --chat-id "$TELEGRAM_CHAT_ID" \
-            --topic-builder "$TOPIC_BUILDER" \
-            --topic-error-logs "$TOPIC_ERROR_LOGS" \
-            --topic-release-json "$TOPIC_RELEASE_JSON" \
-            --token "$TELEGRAM_TOKEN" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --source-dir "$AOSP_SOURCE_DIR" &
-          MONITOR_PID=$!
+#          python3 builder/reporter.py \
+#            --status monitoring \
+#            --device "$DEVICE" \
+#            --build-type "$RELEASETYPE" \
+#            --release-status "$RELEASE_BUILD" \
+#            --gms "$GMS_VARIANT" \
+#            --fsgen "$FSGEN" \
+#            --install-clean "$INSTALLCLEAN" \
+#            --full-clean "$FULLCLEAN" \
+#            --user "$BUILD_USER" \
+#            --chat-id "$TELEGRAM_CHAT_ID" \
+#            --topic-builder "$TOPIC_BUILDER" \
+#            --topic-error-logs "$TOPIC_ERROR_LOGS" \
+#            --topic-release-json "$TOPIC_RELEASE_JSON" \
+#            --token "$TELEGRAM_TOKEN" \
+#            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+#            --source-dir "$AOSP_SOURCE_DIR" &
+#          MONITOR_PID=$!
             
           # Construct Sign Command for TMUX
           # Explicitly set WORKSPACE so sign.sh writes progress.txt to the correct location (GitHub Workspace Root)
-          SIGN_CMD="cd $AOSP_SOURCE_DIR && ${{ github.workspace }}/builder/sign.sh \"$DEVICE\" \"$RELEASETYPE\" \"${{ github.workspace }}/progress.txt\""
+#          SIGN_CMD="cd $AOSP_SOURCE_DIR && ${{ github.workspace }}/builder/sign.sh \"$DEVICE\" \"$RELEASETYPE\" \"${{ github.workspace }}/progress.txt\""
           
           # Run via TMUX Wrapper
-          ${{ github.workspace }}/builder/tmux_runner.sh \
-            "sign_session" \
-            "$SIGN_CMD" \
-            "${{ github.workspace }}/sign.log" \
-            "${{ github.workspace }}/progress.txt"
+#          ${{ github.workspace }}/builder/tmux_runner.sh \
+#            "sign_session" \
+#            "$SIGN_CMD" \
+#            "${{ github.workspace }}/sign.log" \
+#            "${{ github.workspace }}/progress.txt"
           
           # Kill Monitor after signing finishes
-          kill $MONITOR_PID || true
+#          kill $MONITOR_PID || true
 
       - name: Restore Changes (Post-Build)
         if: always()

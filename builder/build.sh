@@ -68,7 +68,7 @@ fi
 echo "Starting make process (target-files-package otatools)..."
 
 # 2. Build Target Files & OTA Tools
-mka target-files-package otatools -j32 || { 
+m afterlife -j32 || { 
     echo "Build failed"; exit 1; 
 }
 
